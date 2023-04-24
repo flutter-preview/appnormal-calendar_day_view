@@ -14,6 +14,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
     required this.date,
     this.leftInset = 55,
     this.onNewEvent,
+    this.onDraggingStateChange,
     this.textStyle = const TextStyle(
       color: Colors.black,
       fontWeight: FontWeight.w600,
@@ -25,6 +26,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
   final DateTime date;
   final TextStyle textStyle;
   final ValueSetter<DateTimeRange>? onNewEvent;
+  final ValueSetter<bool>? onDraggingStateChange;
 
   @override
   RenderObject createRenderObject(BuildContext context) {
@@ -32,6 +34,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
       height: height,
       date: date,
       onNewEvent: onNewEvent,
+      onDraggingStateChange: onDraggingStateChange,
       leftInset: leftInset,
       textStyle: textStyle,
     );
@@ -43,6 +46,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
       ..height = height
       ..date = date
       ..leftInset = leftInset
+      ..onDraggingStateChange = onDraggingStateChange
       ..onNewEvent = onNewEvent
       ..textStyle = textStyle;
   }
@@ -87,11 +91,13 @@ class RenderDayViewWidget extends RenderBox
     required double height,
     required DateTime date,
     required ValueSetter<DateTimeRange>? onNewEvent,
+    required ValueSetter<bool>? onDraggingStateChange,
     required double leftInset,
     required TextStyle textStyle,
   })  : _height = height,
         _date = date,
         _onNewEvent = onNewEvent,
+        _onDraggingStateChange = onDraggingStateChange,
         _leftInset = leftInset,
         _textStyle = textStyle;
 
@@ -113,6 +119,12 @@ class RenderDayViewWidget extends RenderBox
   set onNewEvent(ValueSetter<DateTimeRange>? value) {
     if (_onNewEvent == value) return;
     _onNewEvent = value;
+  }
+
+  late ValueSetter<bool>? _onDraggingStateChange;
+  set onDraggingStateChange(ValueSetter<bool>? value) {
+    if (_onDraggingStateChange == value) return;
+    _onDraggingStateChange = value;
   }
 
   late TextStyle _textStyle;
@@ -229,6 +241,15 @@ class RenderDayViewWidget extends RenderBox
       child.markNeedsLayout();
     });
     markNeedsLayout();
+  }
+
+  void markCountDraggables() {
+    int draggableCount = 0;
+    loopChildren((child) {
+      if (child.parentData!.draggable) draggableCount++;
+    });
+
+    _onDraggingStateChange?.call(draggableCount > 0);
   }
 
   int _calculateColumns() {
@@ -371,7 +392,11 @@ class RenderDayViewWidget extends RenderBox
 
   @override
   bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
-    defaultHitTestChildren(result, position: position);
+    return defaultHitTestChildren(result, position: position);
+  }
+
+  @override
+  bool hitTestSelf(Offset position) {
     return true;
   }
 }

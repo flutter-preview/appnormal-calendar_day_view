@@ -16,6 +16,8 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   late final List<DayItemWidget> children;
+  late final ScrollController controller = ScrollController(initialScrollOffset: 8 * 40.0);
+  bool isDragging = false;
 
   @override
   void initState() {
@@ -35,11 +37,14 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'calendar_day_view',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
       home: Scaffold(
+        appBar: AppBar(
+          title: const Text('calendar_day_view example'),
+        ),
         body: Container(
           color: Colors.white,
           child: Stack(
@@ -47,12 +52,20 @@ class _MyAppState extends State<MyApp> {
               Positioned.fill(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(vertical: 20),
+                  physics: isDragging ? const NeverScrollableScrollPhysics() : const AlwaysScrollableScrollPhysics(),
                   child: DayViewWidget(
                     height: 24 * 40,
                     date: DateTime.now(),
+                    onDraggingStateChange: (isDragging) {
+                      debugPrint('Dragging state changed $isDragging');
+                      setState(() => this.isDragging = isDragging);
+                    },
                     onNewEvent: (range) {
                       debugPrint('New event $range');
                     },
+                    // onItemUpdated: (item, range) {
+                    //   debugPrint('Item updated $item $range');
+                    // },
                     children: children,
                   ),
                 ),

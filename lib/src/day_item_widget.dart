@@ -86,6 +86,7 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
         if (toggleDraggableAction == ToggleDraggableAction.onLongPress) {
           parentData!.draggable = !parentData!.draggable;
           markNeedsPaint();
+          markParentCountDraggables();
         }
       };
 
@@ -100,13 +101,10 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
         final draggingEnd = yOffset > size.height - dragHandleHeight;
 
         if (draggingStart) {
-          debugPrint('Dragging start');
           _activeHandle = _ActiveHandle.start;
         } else if (draggingEnd) {
-          debugPrint('Dragging end');
           _activeHandle = _ActiveHandle.end;
         } else {
-          debugPrint('Dragging middle');
           _activeHandle = _ActiveHandle.middle;
         }
       }
@@ -114,19 +112,16 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
         if (parentData!.draggable && _activeHandle != null) {
           final delta = details.primaryDelta ?? 0;
           final seconds = (delta / parentData!.hourHeight * 3600).round();
-          debugPrint('Dragging delta: $delta == $seconds seconds');
 
           if (_activeHandle == _ActiveHandle.start) {
             _draggedStart = start.add(Duration(seconds: seconds));
-            markParentNeedsRecalculate();
           } else if (_activeHandle == _ActiveHandle.end) {
             _draggedEnd = end.add(Duration(seconds: seconds));
-            markParentNeedsRecalculate();
           } else if (_activeHandle == _ActiveHandle.middle) {
             _draggedStart = start.add(Duration(seconds: seconds));
             _draggedEnd = end.add(Duration(seconds: seconds));
-            markParentNeedsRecalculate();
           }
+          markParentNeedsRecalculate();
         }
       };
   }
@@ -239,6 +234,14 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
     final RenderObject parent = this.parent! as RenderObject;
     if (parent is RenderDayViewWidget) {
       parent.markNeedsRecalculate();
+    }
+  }
+
+  void markParentCountDraggables() {
+    assert(this.parent != null);
+    final RenderObject parent = this.parent! as RenderObject;
+    if (parent is RenderDayViewWidget) {
+      parent.markCountDraggables();
     }
   }
 
