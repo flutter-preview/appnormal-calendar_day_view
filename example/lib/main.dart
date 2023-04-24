@@ -15,14 +15,21 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  final List<DayItemWidget> children = [
-    item(1, '5:30', '8:00', Colors.red),
-    item(5, '10:00', '13:00', Colors.orange),
-    item(2, '5:00', '9:00', Colors.green),
-    item(3, '7:00', '11:00', Colors.amber),
-    item(4, '8:00', '10:00', Colors.blue),
-    item(6, '9:00', '11:00', Colors.orange.shade700),
-  ];
+  late final List<DayItemWidget> children;
+
+  @override
+  void initState() {
+    super.initState();
+
+    children = [
+      item(1, '5:30', '8:00', Colors.red),
+      item(5, '10:00', '13:00', Colors.orange),
+      item(2, '5:00', '9:00', Colors.green),
+      item(3, '7:00', '11:00', Colors.amber),
+      item(4, '8:00', '10:00', Colors.blue),
+      item(6, '9:00', '11:00', Colors.orange.shade700),
+    ];
+  }
 
   // This widget is the root of your application.
   @override
@@ -43,6 +50,9 @@ class _MyAppState extends State<MyApp> {
                   child: DayViewWidget(
                     height: 24 * 40,
                     date: DateTime.now(),
+                    onNewEvent: (range) {
+                      debugPrint('New event $range');
+                    },
                     children: children,
                   ),
                 ),
@@ -77,8 +87,9 @@ class _MyAppState extends State<MyApp> {
     final now = DateTime.now().midnight;
     final start = now.add(Duration(hours: Random().nextInt(20), minutes: Random().nextInt(11) * 5));
     final end = start.add(Duration(hours: 1 + Random().nextInt(2)));
+    final i = children.length;
     return item(
-      children.length,
+      i,
       '${start.hour}:${start.minute}',
       '${end.hour}:${end.minute}',
       Colors.primaries[start.hour % Colors.primaries.length],
@@ -95,13 +106,14 @@ DayItemWidget item(
     DayItemWidget(
       start: start.toDateTime(),
       end: end.toDateTime(),
+      toggleDraggableAction: ToggleDraggableAction.onLongPress,
       child: Container(
         margin: const EdgeInsets.all(1),
         child: Material(
           borderRadius: BorderRadius.circular(4),
           color: color,
           child: InkWell(
-            onTap: () => debugPrint('Tapped $i'),
+            onTap: () {},
             borderRadius: BorderRadius.circular(4),
             splashColor: Colors.black.withOpacity(0.3),
             highlightColor: Colors.black.withOpacity(0.3),
@@ -118,6 +130,7 @@ DayItemWidget item(
       ),
     );
 
+// * Helpers
 extension DateTimeEx on DateTime {
   DateTime get midnight => subtract(Duration(
         hours: hour,

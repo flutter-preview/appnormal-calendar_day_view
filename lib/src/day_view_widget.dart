@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:calendar_day_view/calendar_day_view.dart';
 import 'package:calendar_day_view/src/extension.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
@@ -12,6 +13,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
     required this.height,
     required this.date,
     this.leftInset = 55,
+    this.onNewEvent,
     this.textStyle = const TextStyle(
       color: Colors.black,
       fontWeight: FontWeight.w600,
@@ -22,12 +24,14 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
   final double leftInset;
   final DateTime date;
   final TextStyle textStyle;
+  final ValueSetter<DateTimeRange>? onNewEvent;
 
   @override
   RenderObject createRenderObject(BuildContext context) {
     return RenderDayViewWidget(
       height: height,
       date: date,
+      onNewEvent: onNewEvent,
       leftInset: leftInset,
       textStyle: textStyle,
     );
@@ -39,6 +43,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
       ..height = height
       ..date = date
       ..leftInset = leftInset
+      ..onNewEvent = onNewEvent
       ..textStyle = textStyle;
   }
 }
@@ -47,11 +52,13 @@ class DayViewWidgetParentData extends ContainerBoxParentData<RenderDayItemWidget
   DayViewWidgetParentData({
     required this.hourHeight,
     required this.date,
+    this.draggable = false,
     this.left = 0,
   });
 
   final double hourHeight;
   final DateTime date;
+  bool draggable;
   double left;
 
   int numColumns = 1;
@@ -60,15 +67,10 @@ class DayViewWidgetParentData extends ContainerBoxParentData<RenderDayItemWidget
 
   int get endCol => startCol + colSpan;
 
-  RenderDayItemWidget? parent;
-  List<RenderDayItemWidget> children = [];
-
   void reset() {
     numColumns = 1;
     startCol = -1;
     colSpan = -1;
-    parent = null;
-    children = [];
   }
 
   @override
@@ -84,10 +86,12 @@ class RenderDayViewWidget extends RenderBox
   RenderDayViewWidget({
     required double height,
     required DateTime date,
+    required ValueSetter<DateTimeRange>? onNewEvent,
     required double leftInset,
     required TextStyle textStyle,
   })  : _height = height,
         _date = date,
+        _onNewEvent = onNewEvent,
         _leftInset = leftInset,
         _textStyle = textStyle;
 
@@ -105,6 +109,12 @@ class RenderDayViewWidget extends RenderBox
     markNeedsPaint();
   }
 
+  late ValueSetter<DateTimeRange>? _onNewEvent;
+  set onNewEvent(ValueSetter<DateTimeRange>? value) {
+    if (_onNewEvent == value) return;
+    _onNewEvent = value;
+  }
+
   late TextStyle _textStyle;
   set textStyle(TextStyle value) {
     if (_textStyle == value) return;
@@ -117,6 +127,49 @@ class RenderDayViewWidget extends RenderBox
     if (_leftInset == value) return;
     _leftInset = value;
     markNeedsPaint();
+  }
+
+  late final TapGestureRecognizer _tapGestureRecognizer;
+
+  @override
+  void attach(covariant PipelineOwner owner) {
+    super.attach(owner);
+    _tapGestureRecognizer = TapGestureRecognizer(debugOwner: this)
+      ..onTapUp = (details) {
+        _handleNewItemStart(details.localPosition);
+      };
+  }
+
+  @override
+  void handleEvent(PointerEvent event, covariant HitTestEntry<HitTestTarget> entry) {
+    assert(debugHandleEvent(event, entry));
+
+    if (event is PointerDownEvent) {
+      _tapGestureRecognizer.addPointer(event);
+    }
+  }
+
+  void _handleNewItemStart(Offset localPosition) {
+    final hitChild = defaultHitTestChildren(BoxHitTestResult(), position: localPosition);
+    if (!hitChild) {
+      debugPrint('On start drag on view');
+      _onNewEvent?.call(_selectedRange(localPosition));
+    }
+  }
+
+  DateTimeRange _selectedRange(Offset localPosition) {
+    final start = offsetToDateTime(localPosition);
+    final end = start.add(const Duration(minutes: 30));
+
+    return DateTimeRange(start: start, end: end);
+  }
+
+  DateTime offsetToDateTime(Offset offset) {
+    final hourHeight = _height / 24;
+    final hour = offset.dy ~/ hourHeight;
+    final minute = ((offset.dy % hourHeight) / hourHeight * 60).round();
+
+    return _date.midnight.add(Duration(hours: hour, minutes: minute));
   }
 
   @override
@@ -318,6 +371,7 @@ class RenderDayViewWidget extends RenderBox
 
   @override
   bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
-    return defaultHitTestChildren(result, position: position);
+    defaultHitTestChildren(result, position: position);
+    return true;
   }
 }
