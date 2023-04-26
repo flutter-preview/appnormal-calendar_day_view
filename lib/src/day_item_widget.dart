@@ -3,6 +3,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
+typedef DragHandlePainter = void Function(Canvas canvas, Size size);
+
 enum ToggleDraggableAction {
   onTap,
   onLongPress,
@@ -17,11 +19,15 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
     required this.start,
     required this.end,
     this.toggleDraggableAction,
+    this.drawTopDragHandle,
+    this.drawBottomDragHandle,
   });
 
   final DateTime start;
   final DateTime end;
   final ToggleDraggableAction? toggleDraggableAction;
+  final DragHandlePainter? drawTopDragHandle;
+  final DragHandlePainter? drawBottomDragHandle;
 
   @override
   RenderObject createRenderObject(BuildContext context) {
@@ -29,6 +35,8 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
       start: start,
       end: end,
       toggleDraggableAction: toggleDraggableAction,
+      drawTopDragHandle: drawTopDragHandle,
+      drawBottomDragHandle: drawBottomDragHandle,
     );
   }
 
@@ -37,7 +45,9 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
     renderObject
       ..start = start
       ..end = end
-      ..toggleDraggableAction = toggleDraggableAction;
+      ..toggleDraggableAction = toggleDraggableAction
+      ..drawTopDragHandle = drawTopDragHandle
+      ..drawBottomDragHandle = drawBottomDragHandle;
   }
 }
 
@@ -46,96 +56,31 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
     required DateTime start,
     required DateTime end,
     ToggleDraggableAction? toggleDraggableAction,
+    DragHandlePainter? drawTopDragHandle,
+    DragHandlePainter? drawBottomDragHandle,
   })  : _start = start,
         _end = end,
-        _toggleDraggableAction = toggleDraggableAction;
+        _toggleDraggableAction = toggleDraggableAction,
+        _drawTopDragHandle = drawTopDragHandle,
+        _drawBottomDragHandle = drawBottomDragHandle;
 
   DateTime _start;
   DateTime _end;
 
   DateTime? _draggedStart;
   DateTime? _draggedEnd;
+  double _cumulativeDelta = 0;
 
   ToggleDraggableAction? _toggleDraggableAction;
+
+  DragHandlePainter? _drawTopDragHandle;
+  DragHandlePainter? _drawBottomDragHandle;
+
   _ActiveHandle? _activeHandle;
 
   late final TapGestureRecognizer _tapGestureRecognizer;
   late final LongPressGestureRecognizer _longPressGestureRecognizer;
   late final VerticalDragGestureRecognizer _dragGestureRecognizer;
-
-  @override
-  void setupParentData(covariant RenderObject child) {
-    super.setupParentData(child);
-    parentData?.draggable = false;
-  }
-
-  @override
-  void attach(covariant PipelineOwner owner) {
-    super.attach(owner);
-
-    _tapGestureRecognizer = TapGestureRecognizer(debugOwner: this)
-      ..onTapDown = (details) {
-        if (toggleDraggableAction == ToggleDraggableAction.onTap) {
-          parentData!.draggable = !parentData!.draggable;
-          markNeedsPaint();
-        }
-      };
-
-    _longPressGestureRecognizer = LongPressGestureRecognizer(debugOwner: this)
-      ..onLongPressEnd = (details) {
-        if (toggleDraggableAction == ToggleDraggableAction.onLongPress) {
-          parentData!.draggable = !parentData!.draggable;
-          markNeedsPaint();
-          markParentCountDraggables();
-        }
-      };
-
-    _dragGestureRecognizer = VerticalDragGestureRecognizer(debugOwner: this)
-      ..onDown = (details) {
-        if (!parentData!.draggable) {
-          return;
-        }
-
-        final yOffset = details.localPosition.dy;
-        final draggingStart = yOffset < dragHandleHeight;
-        final draggingEnd = yOffset > size.height - dragHandleHeight;
-
-        if (draggingStart) {
-          _activeHandle = _ActiveHandle.start;
-        } else if (draggingEnd) {
-          _activeHandle = _ActiveHandle.end;
-        } else {
-          _activeHandle = _ActiveHandle.middle;
-        }
-      }
-      ..onUpdate = (details) {
-        if (parentData!.draggable && _activeHandle != null) {
-          final delta = details.primaryDelta ?? 0;
-          final seconds = (delta / parentData!.hourHeight * 3600).round();
-
-          if (_activeHandle == _ActiveHandle.start) {
-            _draggedStart = start.add(Duration(seconds: seconds));
-          } else if (_activeHandle == _ActiveHandle.end) {
-            _draggedEnd = end.add(Duration(seconds: seconds));
-          } else if (_activeHandle == _ActiveHandle.middle) {
-            _draggedStart = start.add(Duration(seconds: seconds));
-            _draggedEnd = end.add(Duration(seconds: seconds));
-          }
-          markParentNeedsRecalculate();
-        }
-      };
-  }
-
-  @override
-  void handleEvent(PointerEvent event, covariant HitTestEntry<HitTestTarget> entry) {
-    assert(debugHandleEvent(event, entry));
-
-    if (event is PointerDownEvent) {
-      _tapGestureRecognizer.addPointer(event);
-      _longPressGestureRecognizer.addPointer(event);
-      _dragGestureRecognizer.addPointer(event);
-    }
-  }
 
   @override
   DayViewWidgetParentData? get parentData => super.parentData as DayViewWidgetParentData?;
@@ -163,6 +108,96 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   set toggleDraggableAction(ToggleDraggableAction? value) {
     if (_toggleDraggableAction == value) return;
     _toggleDraggableAction = value;
+  }
+
+  DragHandlePainter? get drawTopDragHandle => _drawTopDragHandle;
+  set drawTopDragHandle(DragHandlePainter? value) {
+    if (_drawTopDragHandle == value) return;
+    _drawTopDragHandle = value;
+  }
+
+  DragHandlePainter? get drawBottomDragHandle => _drawBottomDragHandle;
+  set drawBottomDragHandle(DragHandlePainter? value) {
+    if (_drawBottomDragHandle == value) return;
+    _drawBottomDragHandle = value;
+  }
+
+  @override
+  void setupParentData(covariant RenderObject child) {
+    super.setupParentData(child);
+    parentData?.draggable = false;
+  }
+
+  @override
+  void attach(covariant PipelineOwner owner) {
+    super.attach(owner);
+
+    _tapGestureRecognizer = TapGestureRecognizer(debugOwner: this)
+      ..onTapDown = (details) {
+        if (toggleDraggableAction == ToggleDraggableAction.onTap) {
+          parentData!.draggable = !parentData!.draggable;
+          markNeedsPaint();
+        }
+      };
+
+    _longPressGestureRecognizer = LongPressGestureRecognizer(debugOwner: this)
+      ..onLongPressStart = (details) {
+        if (toggleDraggableAction == ToggleDraggableAction.onLongPress) {
+          parentData!.draggable = !parentData!.draggable;
+          markNeedsPaint();
+          markParentCountDraggables();
+        }
+      };
+
+    _dragGestureRecognizer = VerticalDragGestureRecognizer(debugOwner: this)
+      ..onDown = (details) {
+        if (!parentData!.draggable) {
+          return;
+        }
+
+        final yOffset = details.localPosition.dy;
+        final draggingStart = yOffset < dragHandleHeight;
+        final draggingEnd = yOffset > size.height - dragHandleHeight;
+
+        if (draggingStart) {
+          _activeHandle = _ActiveHandle.start;
+        } else if (draggingEnd) {
+          _activeHandle = _ActiveHandle.end;
+        } else {
+          _activeHandle = _ActiveHandle.middle;
+        }
+      }
+      ..onUpdate = (details) {
+        if (parentData!.draggable && _activeHandle != null) {
+          _cumulativeDelta += details.primaryDelta ?? 0;
+
+          final seconds = (_cumulativeDelta / parentData!.hourHeight * 3600).round();
+
+          if (seconds.abs() > parentData!.dragStep.inSeconds) {
+            _cumulativeDelta = 0;
+            if (_activeHandle == _ActiveHandle.start) {
+              _draggedStart = start.add(Duration(seconds: seconds));
+            } else if (_activeHandle == _ActiveHandle.end) {
+              _draggedEnd = end.add(Duration(seconds: seconds));
+            } else if (_activeHandle == _ActiveHandle.middle) {
+              _draggedStart = start.add(Duration(seconds: seconds));
+              _draggedEnd = end.add(Duration(seconds: seconds));
+            }
+            markParentNeedsRecalculate();
+          }
+        }
+      };
+  }
+
+  @override
+  void handleEvent(PointerEvent event, covariant HitTestEntry<HitTestTarget> entry) {
+    assert(debugHandleEvent(event, entry));
+
+    if (event is PointerDownEvent) {
+      _tapGestureRecognizer.addPointer(event);
+      _longPressGestureRecognizer.addPointer(event);
+      _dragGestureRecognizer.addPointer(event);
+    }
   }
 
   Size _performLayout(BoxConstraints constraints, {required bool dry}) {
@@ -205,10 +240,6 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
 
   @override
   void paint(PaintingContext context, Offset offset) {
-    final paint = Paint()
-      ..color = Colors.black.withOpacity(.3)
-      ..style = PaintingStyle.fill;
-
     final childParentData = child?.parentData as BoxParentData;
     final topLeft = childParentData.offset + offset;
 
@@ -219,11 +250,8 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
       context.canvas.save();
       context.canvas.translate(topLeft.dx, topLeft.dy);
 
-      final topRect = Rect.fromLTRB(0, 0, size.width, dragHandleHeight);
-      final bottomRect = Rect.fromLTRB(0, size.height - dragHandleHeight, size.width, size.height);
-
-      context.canvas.drawRect(topRect, paint);
-      context.canvas.drawRect(bottomRect, paint);
+      drawTopDragHandle?.call(context.canvas, size);
+      drawBottomDragHandle?.call(context.canvas, size);
 
       context.canvas.restore();
     }

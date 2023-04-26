@@ -56,6 +56,7 @@ class _MyAppState extends State<MyApp> {
                   child: DayViewWidget(
                     height: 24 * 40,
                     date: DateTime.now(),
+                    dragStep: const Duration(minutes: 5),
                     onDraggingStateChange: (isDragging) {
                       debugPrint('Dragging state changed $isDragging');
                       setState(() => this.isDragging = isDragging);
@@ -115,33 +116,73 @@ DayItemWidget item(
   String start,
   String end,
   Color color,
-) =>
-    DayItemWidget(
-      start: start.toDateTime(),
-      end: end.toDateTime(),
-      toggleDraggableAction: ToggleDraggableAction.onLongPress,
-      child: Container(
-        margin: const EdgeInsets.all(1),
-        child: Material(
+) {
+  const handleSize = 5.0;
+
+  final outerPaint = Paint()
+    ..color = color
+    ..style = PaintingStyle.fill;
+  final innerPaint = Paint()
+    ..color = Colors.white
+    ..style = PaintingStyle.fill;
+
+  void topHandlePainter(Canvas canvas, Size size) {
+    canvas.drawCircle(Offset((size.width * 0.8), 1), handleSize, outerPaint);
+    canvas.drawCircle(Offset((size.width * 0.8), 1), handleSize - 2, innerPaint);
+  }
+
+  void bottomHandlePainter(Canvas canvas, Size size) {
+    canvas.drawCircle(Offset((size.width * 0.2), size.height - 1), 5, outerPaint);
+    canvas.drawCircle(Offset((size.width * 0.2), size.height - 1), handleSize - 2, innerPaint);
+  }
+
+  return DayItemWidget(
+    start: start.toDateTime(),
+    end: end.toDateTime(),
+    toggleDraggableAction: ToggleDraggableAction.onLongPress,
+    drawTopDragHandle: topHandlePainter,
+    drawBottomDragHandle: bottomHandlePainter,
+    child: _Item(
+      color: color,
+      child: Text(
+        'Item $i',
+        style: const TextStyle(color: Colors.black),
+      ),
+    ),
+  );
+}
+
+class _Item extends StatelessWidget {
+  const _Item({
+    required this.child,
+    required this.color,
+  });
+
+  final Widget child;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(1),
+      child: Material(
+        borderRadius: BorderRadius.circular(4),
+        color: color,
+        child: InkWell(
+          onTap: () {},
           borderRadius: BorderRadius.circular(4),
-          color: color,
-          child: InkWell(
-            onTap: () {},
-            borderRadius: BorderRadius.circular(4),
-            splashColor: Colors.black.withOpacity(0.3),
-            highlightColor: Colors.black.withOpacity(0.3),
-            hoverColor: Colors.black.withOpacity(0.1),
-            child: Padding(
-              padding: const EdgeInsets.all(4.0),
-              child: Text(
-                'Item $i',
-                style: const TextStyle(color: Colors.black),
-              ),
-            ),
+          splashColor: Colors.black.withOpacity(0.3),
+          highlightColor: Colors.black.withOpacity(0.3),
+          hoverColor: Colors.black.withOpacity(0.1),
+          child: Padding(
+            padding: const EdgeInsets.all(4.0),
+            child: child,
           ),
         ),
       ),
     );
+  }
+}
 
 // * Helpers
 extension DateTimeEx on DateTime {

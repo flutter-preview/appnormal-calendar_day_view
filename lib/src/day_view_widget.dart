@@ -13,6 +13,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
     required this.height,
     required this.date,
     this.leftInset = 55,
+    this.dragStep = const Duration(seconds: 1),
     this.onNewEvent,
     this.onDraggingStateChange,
     this.textStyle = const TextStyle(
@@ -23,6 +24,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
 
   final double height;
   final double leftInset;
+  final Duration dragStep;
   final DateTime date;
   final TextStyle textStyle;
   final ValueSetter<DateTimeRange>? onNewEvent;
@@ -33,6 +35,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
     return RenderDayViewWidget(
       height: height,
       date: date,
+      dragStep: dragStep,
       onNewEvent: onNewEvent,
       onDraggingStateChange: onDraggingStateChange,
       leftInset: leftInset,
@@ -45,6 +48,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
     renderObject
       ..height = height
       ..date = date
+      ..dragStep = dragStep
       ..leftInset = leftInset
       ..onDraggingStateChange = onDraggingStateChange
       ..onNewEvent = onNewEvent
@@ -56,12 +60,14 @@ class DayViewWidgetParentData extends ContainerBoxParentData<RenderDayItemWidget
   DayViewWidgetParentData({
     required this.hourHeight,
     required this.date,
+    required this.dragStep,
     this.draggable = false,
     this.left = 0,
   });
 
   final double hourHeight;
   final DateTime date;
+  final Duration dragStep;
   bool draggable;
   double left;
 
@@ -90,12 +96,14 @@ class RenderDayViewWidget extends RenderBox
   RenderDayViewWidget({
     required double height,
     required DateTime date,
+    required Duration dragStep,
     required ValueSetter<DateTimeRange>? onNewEvent,
     required ValueSetter<bool>? onDraggingStateChange,
     required double leftInset,
     required TextStyle textStyle,
   })  : _height = height,
         _date = date,
+        _dragStep = dragStep,
         _onNewEvent = onNewEvent,
         _onDraggingStateChange = onDraggingStateChange,
         _leftInset = leftInset,
@@ -139,6 +147,12 @@ class RenderDayViewWidget extends RenderBox
     if (_leftInset == value) return;
     _leftInset = value;
     markNeedsPaint();
+  }
+
+  late Duration _dragStep;
+  set dragStep(Duration value) {
+    if (_dragStep == value) return;
+    _dragStep = value;
   }
 
   late final TapGestureRecognizer _tapGestureRecognizer;
@@ -197,6 +211,7 @@ class RenderDayViewWidget extends RenderBox
         hourHeight: _height / 24,
         date: _date.midnight,
         left: _leftInset,
+        dragStep: _dragStep,
       );
     }
 
