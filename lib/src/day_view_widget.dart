@@ -162,7 +162,7 @@ class RenderDayViewWidget extends RenderBox
     super.attach(owner);
     _tapGestureRecognizer = TapGestureRecognizer(debugOwner: this)
       ..onTapUp = (details) {
-        _handleNewItemStart(details.localPosition);
+        _handleOnTap(details.localPosition);
       };
   }
 
@@ -175,17 +175,26 @@ class RenderDayViewWidget extends RenderBox
     }
   }
 
-  void _handleNewItemStart(Offset localPosition) {
+  void _handleOnTap(Offset localPosition) {
     final hitChild = defaultHitTestChildren(BoxHitTestResult(), position: localPosition);
     if (!hitChild) {
-      debugPrint('On start drag on view');
-      _onNewEvent?.call(_selectedRange(localPosition));
+      bool disabledDragging = false;
+      loopChildren((child) {
+        if (child.parentData?.draggable == true) {
+          child.stopDragging();
+          disabledDragging = true;
+        }
+      });
+
+      if (!disabledDragging) {
+        _onNewEvent?.call(_selectedRange(localPosition));
+      }
     }
   }
 
   DateTimeRange _selectedRange(Offset localPosition) {
     final start = offsetToDateTime(localPosition);
-    final end = start.add(const Duration(minutes: 30));
+    final end = start.add(const Duration(minutes: 60));
 
     return DateTimeRange(start: start, end: end);
   }
@@ -193,9 +202,8 @@ class RenderDayViewWidget extends RenderBox
   DateTime offsetToDateTime(Offset offset) {
     final hourHeight = _height / 24;
     final hour = offset.dy ~/ hourHeight;
-    final minute = ((offset.dy % hourHeight) / hourHeight * 60).round();
 
-    return _date.midnight.add(Duration(hours: hour, minutes: minute));
+    return _date.midnight.add(Duration(hours: hour));
   }
 
   @override
@@ -395,7 +403,10 @@ class RenderDayViewWidget extends RenderBox
     }
 
     // Paint the children
-    defaultPaint(context, offset);
+    loopChildren((child) {
+      final childParentData = child.parentData!;
+      context.paintChild(child, childParentData.offset + offset);
+    });
   }
 
   void _drawText(Canvas canvas, Offset offset, String s) {

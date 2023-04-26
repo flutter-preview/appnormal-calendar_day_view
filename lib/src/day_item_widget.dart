@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 typedef DragHandlePainter = void Function(Canvas canvas, Size size);
+typedef DragChildBuilder = Widget Function(DateTime start, DateTime end);
 
 enum ToggleDraggableAction {
   onTap,
@@ -18,22 +19,27 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
     super.child,
     required this.start,
     required this.end,
+    this.onItemDragEnd,
     this.toggleDraggableAction,
     this.drawTopDragHandle,
     this.drawBottomDragHandle,
+    this.dragChildBuilder,
   });
 
   final DateTime start;
   final DateTime end;
+  final ValueChanged<DateTimeRange>? onItemDragEnd;
   final ToggleDraggableAction? toggleDraggableAction;
   final DragHandlePainter? drawTopDragHandle;
   final DragHandlePainter? drawBottomDragHandle;
+  final DragChildBuilder? dragChildBuilder;
 
   @override
   RenderObject createRenderObject(BuildContext context) {
     return RenderDayItemWidget(
       start: start,
       end: end,
+      onItemDragEnd: onItemDragEnd,
       toggleDraggableAction: toggleDraggableAction,
       drawTopDragHandle: drawTopDragHandle,
       drawBottomDragHandle: drawBottomDragHandle,
@@ -45,6 +51,7 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
     renderObject
       ..start = start
       ..end = end
+      ..onItemDragEnd = onItemDragEnd
       ..toggleDraggableAction = toggleDraggableAction
       ..drawTopDragHandle = drawTopDragHandle
       ..drawBottomDragHandle = drawBottomDragHandle;
@@ -55,17 +62,20 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   RenderDayItemWidget({
     required DateTime start,
     required DateTime end,
+    ValueChanged<DateTimeRange>? onItemDragEnd,
     ToggleDraggableAction? toggleDraggableAction,
     DragHandlePainter? drawTopDragHandle,
     DragHandlePainter? drawBottomDragHandle,
   })  : _start = start,
         _end = end,
+        _onItemDragEnd = onItemDragEnd,
         _toggleDraggableAction = toggleDraggableAction,
         _drawTopDragHandle = drawTopDragHandle,
         _drawBottomDragHandle = drawBottomDragHandle;
 
   DateTime _start;
   DateTime _end;
+  ValueChanged<DateTimeRange>? _onItemDragEnd;
 
   DateTime? _draggedStart;
   DateTime? _draggedEnd;
@@ -122,6 +132,12 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
     _drawBottomDragHandle = value;
   }
 
+  ValueChanged<DateTimeRange>? get onItemDragEnd => _onItemDragEnd;
+  set onItemDragEnd(ValueChanged<DateTimeRange>? value) {
+    if (_onItemDragEnd == value) return;
+    _onItemDragEnd = value;
+  }
+
   @override
   void setupParentData(covariant RenderObject child) {
     super.setupParentData(child);
@@ -143,7 +159,7 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
     _longPressGestureRecognizer = LongPressGestureRecognizer(debugOwner: this)
       ..onLongPressStart = (details) {
         if (toggleDraggableAction == ToggleDraggableAction.onLongPress) {
-          parentData!.draggable = !parentData!.draggable;
+          parentData!.draggable = true;
           markNeedsPaint();
           markParentCountDraggables();
         }
@@ -224,6 +240,17 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
     }
 
     return Size(width, height);
+  }
+
+  void stopDragging() {
+    parentData!.draggable = false;
+    onItemDragEnd?.call(range);
+
+    _activeHandle = null;
+    _cumulativeDelta = 0;
+    _draggedStart = null;
+    _draggedEnd = null;
+    markNeedsPaint();
   }
 
   @override
