@@ -1,3 +1,4 @@
+import 'package:calendar_day_view/src/calendar_gesture_detector.dart';
 import 'package:calendar_day_view/src/day_view_widget.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -23,19 +24,26 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
     this.toggleDraggableAction,
     this.drawTopDragHandle,
     this.drawBottomDragHandle,
-    this.dragChildBuilder,
   });
 
+  // The start time of the item in the day view.
   final DateTime start;
+
+  // The end time of the item in the day view.
   final DateTime end;
+
+  // Called after a item is dragged and modified.
   final ValueChanged<DateTimeRange>? onItemDragEnd;
+
+  // The action that will trigger the item to be draggable. Either a tap or a long press.
   final ToggleDraggableAction? toggleDraggableAction;
+
+  // The painter that will be used to draw the top drag handle. This exposes
   final DragHandlePainter? drawTopDragHandle;
   final DragHandlePainter? drawBottomDragHandle;
-  final DragChildBuilder? dragChildBuilder;
 
   @override
-  RenderObject createRenderObject(BuildContext context) {
+  RenderDayItemWidget createRenderObject(BuildContext context) {
     return RenderDayItemWidget(
       start: start,
       end: end,
@@ -88,14 +96,14 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
 
   _ActiveHandle? _activeHandle;
 
-  late final TapGestureRecognizer _tapGestureRecognizer;
-  late final LongPressGestureRecognizer _longPressGestureRecognizer;
-  late final VerticalDragGestureRecognizer _dragGestureRecognizer;
+  late final CalendarGestureDetector _gestureDetector;
 
   @override
   DayViewWidgetParentData? get parentData => super.parentData as DayViewWidgetParentData?;
 
-  DateTimeRange get range => DateTimeRange(start: start, end: end);
+  DateTimeRange get range {
+    return DateTimeRange(start: start, end: end);
+  }
 
   DateTime get start =>
       (_draggedStart ?? _start).isBefore(parentData!.date) ? parentData!.date : (_draggedStart ?? _start);
@@ -148,72 +156,68 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   void attach(covariant PipelineOwner owner) {
     super.attach(owner);
 
-    _tapGestureRecognizer = TapGestureRecognizer(debugOwner: this)
-      ..onTapDown = (details) {
-        if (toggleDraggableAction == ToggleDraggableAction.onTap) {
-          parentData!.draggable = !parentData!.draggable;
-          markNeedsPaint();
-        }
-      };
+    void toggleDraggable() {
+      parentData!.draggable = !parentData!.draggable;
+      markNeedsPaint();
+      markParentCountDraggables();
+    }
 
-    _longPressGestureRecognizer = LongPressGestureRecognizer(debugOwner: this)
-      ..onLongPressStart = (details) {
-        if (toggleDraggableAction == ToggleDraggableAction.onLongPress) {
-          parentData!.draggable = true;
-          markNeedsPaint();
-          markParentCountDraggables();
-        }
-      };
+    void onVerticalDragStart(double yOffset) {
+      if (!parentData!.draggable) {
+        return;
+      }
 
-    _dragGestureRecognizer = VerticalDragGestureRecognizer(debugOwner: this)
-      ..onDown = (details) {
-        if (!parentData!.draggable) {
-          return;
-        }
+      final draggingStart = yOffset < dragHandleHeight;
+      final draggingEnd = yOffset > size.height - dragHandleHeight;
 
-        final yOffset = details.localPosition.dy;
-        final draggingStart = yOffset < dragHandleHeight;
-        final draggingEnd = yOffset > size.height - dragHandleHeight;
+      if (draggingStart) {
+        _activeHandle = _ActiveHandle.start;
+      } else if (draggingEnd) {
+        _activeHandle = _ActiveHandle.end;
+      } else {
+        _activeHandle = _ActiveHandle.middle;
+      }
+    }
 
-        if (draggingStart) {
-          _activeHandle = _ActiveHandle.start;
-        } else if (draggingEnd) {
-          _activeHandle = _ActiveHandle.end;
-        } else {
-          _activeHandle = _ActiveHandle.middle;
+    void onVerticalDragUpdate(double delta) {
+      if (parentData!.draggable && _activeHandle != null) {
+        _cumulativeDelta += delta;
+
+        final seconds = (_cumulativeDelta / parentData!.hourHeight * 3600).round();
+
+        if (seconds.abs() > parentData!.dragStep.inSeconds) {
+          _cumulativeDelta = 0;
+          if (_activeHandle == _ActiveHandle.start) {
+            _draggedStart = start.add(Duration(seconds: seconds));
+          } else if (_activeHandle == _ActiveHandle.end) {
+            _draggedEnd = end.add(Duration(seconds: seconds));
+          } else if (_activeHandle == _ActiveHandle.middle) {
+            _draggedStart = start.add(Duration(seconds: seconds));
+            _draggedEnd = end.add(Duration(seconds: seconds));
+          }
+
+          // Limit the calendar item period to a minimum of 5 minutes
+          if (end.isBefore(start)) {
+            _draggedEnd = start.copyWith().add(const Duration(minutes: 5));
+          }
+          markParentNeedsRecalculate();
         }
       }
-      ..onUpdate = (details) {
-        if (parentData!.draggable && _activeHandle != null) {
-          _cumulativeDelta += details.primaryDelta ?? 0;
+    }
 
-          final seconds = (_cumulativeDelta / parentData!.hourHeight * 3600).round();
-
-          if (seconds.abs() > parentData!.dragStep.inSeconds) {
-            _cumulativeDelta = 0;
-            if (_activeHandle == _ActiveHandle.start) {
-              _draggedStart = start.add(Duration(seconds: seconds));
-            } else if (_activeHandle == _ActiveHandle.end) {
-              _draggedEnd = end.add(Duration(seconds: seconds));
-            } else if (_activeHandle == _ActiveHandle.middle) {
-              _draggedStart = start.add(Duration(seconds: seconds));
-              _draggedEnd = end.add(Duration(seconds: seconds));
-            }
-            markParentNeedsRecalculate();
-          }
-        }
-      };
+    _gestureDetector = CalendarGestureDetector(
+      onTap: _toggleDraggableAction == ToggleDraggableAction.onTap ? toggleDraggable : null,
+      onLongPress: _toggleDraggableAction == ToggleDraggableAction.onLongPress ? toggleDraggable : null,
+      onVerticalDragStart: onVerticalDragStart,
+      onVerticalDragUpdate: onVerticalDragUpdate,
+    );
   }
 
   @override
   void handleEvent(PointerEvent event, covariant HitTestEntry<HitTestTarget> entry) {
     assert(debugHandleEvent(event, entry));
 
-    if (event is PointerDownEvent) {
-      _tapGestureRecognizer.addPointer(event);
-      _longPressGestureRecognizer.addPointer(event);
-      _dragGestureRecognizer.addPointer(event);
-    }
+    _gestureDetector.handleEvent(event);
   }
 
   Size _performLayout(BoxConstraints constraints, {required bool dry}) {
@@ -285,7 +289,9 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   }
 
   void markParentNeedsRecalculate() {
-    assert(this.parent != null);
+    // Can happen with the dragging of a new item
+    if (this.parent == null) return;
+
     final RenderObject parent = this.parent! as RenderObject;
     if (parent is RenderDayViewWidget) {
       parent.markNeedsRecalculate();
@@ -293,7 +299,9 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   }
 
   void markParentCountDraggables() {
-    assert(this.parent != null);
+    // Can happen with the dragging of a new item
+    if (this.parent == null) return;
+
     final RenderObject parent = this.parent! as RenderObject;
     if (parent is RenderDayViewWidget) {
       parent.markCountDraggables();

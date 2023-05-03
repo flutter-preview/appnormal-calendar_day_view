@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -34,6 +35,10 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    // On desktop we have the mouse for scroll interactions, we only
+    // disable the scroll physics when dragging on mobile.
+    final isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+
     return MaterialApp(
       title: 'calendar_day_view',
       theme: ThemeData(
@@ -50,24 +55,24 @@ class _MyAppState extends State<MyApp> {
               Positioned.fill(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(vertical: 20),
-                  physics: isDragging ? const NeverScrollableScrollPhysics() : const AlwaysScrollableScrollPhysics(),
+                  physics: isDragging && !isDesktop
+                      ? const NeverScrollableScrollPhysics()
+                      : const AlwaysScrollableScrollPhysics(),
                   child: DayViewWidget(
                     height: 24 * 40,
                     date: DateTime.now(),
                     dragStep: const Duration(minutes: 5),
                     onDraggingStateChange: (isDragging) {
-                      debugPrint('Dragging state changed $isDragging');
                       setState(() => this.isDragging = isDragging);
                     },
+                    onNewItemBuilder: (_) {
+                      return Container(color: Colors.green, child: const SizedBox.expand());
+                    },
                     onNewEvent: (range) {
-                      debugPrint('New event $range');
                       setState(() {
                         children.add(ExampleObject(Colors.orange, range.start, range.end));
                       });
                     },
-                    // onItemUpdated: (item, range) {
-                    //   debugPrint('Item updated $item $range');
-                    // },
                     children: children
                         .asMap()
                         .entries
@@ -86,9 +91,7 @@ class _MyAppState extends State<MyApp> {
                   padding: const EdgeInsets.all(16),
                   child: ElevatedButton(
                     onPressed: () {
-                      setState(() {
-                        children.add(randomItem());
-                      });
+                      setState(() => children.add(randomItem()));
                     },
                     style: const ButtonStyle(
                       padding: MaterialStatePropertyAll(EdgeInsets.all(20)),
@@ -159,17 +162,6 @@ DayItemWidget item(
     drawTopDragHandle: topHandlePainter,
     drawBottomDragHandle: bottomHandlePainter,
     onItemDragEnd: onItemUpdated,
-    dragChildBuilder: (start, end) {
-      final startHour = '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}';
-      final updatedRange = '$startHour - ${end.hour}:${end.minute}';
-      return _Item(
-        color: backgroundColor,
-        child: Text(
-          '$updatedRange | Item $i',
-          style: const TextStyle(color: Colors.black),
-        ),
-      );
-    },
     child: _Item(
       color: backgroundColor,
       child: Text(

@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:calendar_day_view/calendar_day_view.dart';
+import 'package:calendar_day_view/src/calendar_gesture_detector.dart';
 import 'package:calendar_day_view/src/extension.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
     this.dragStep = const Duration(seconds: 1),
     this.onNewEvent,
     this.onDraggingStateChange,
+    required this.onNewItemBuilder,
     this.textStyle = const TextStyle(
       color: Colors.black,
       fontWeight: FontWeight.w600,
@@ -27,6 +29,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
   final Duration dragStep;
   final DateTime date;
   final TextStyle textStyle;
+  final WidgetBuilder onNewItemBuilder;
   final ValueSetter<DateTimeRange>? onNewEvent;
   final ValueSetter<bool>? onDraggingStateChange;
 
@@ -36,11 +39,32 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
       height: height,
       date: date,
       dragStep: dragStep,
+      dragRenderObject: dragRenderObject(context),
       onNewEvent: onNewEvent,
       onDraggingStateChange: onDraggingStateChange,
       leftInset: leftInset,
       textStyle: textStyle,
     );
+  }
+
+  RenderDayItemWidget dragRenderObject(BuildContext context) {
+    final drawWidget = onNewItemBuilder(context);
+    final dayItemView = DayItemWidget(start: DateTime.now(), end: DateTime.now(), child: drawWidget);
+    final renderObject = dayItemView.createRenderObject(context);
+
+    renderObject.parentData = DayViewWidgetParentData(
+      hourHeight: height / 24,
+      date: date.midnight,
+      dragStep: dragStep,
+      left: leftInset,
+    );
+
+    // Drag child is always fill width
+    renderObject.parentData?.colSpan = 1;
+    renderObject.parentData?.numColumns = 1;
+    renderObject.parentData?.startCol = 0;
+
+    return renderObject;
   }
 
   @override
@@ -49,6 +73,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
       ..height = height
       ..date = date
       ..dragStep = dragStep
+      ..dragRenderObject = dragRenderObject(context)
       ..leftInset = leftInset
       ..onDraggingStateChange = onDraggingStateChange
       ..onNewEvent = onNewEvent
@@ -82,11 +107,6 @@ class DayViewWidgetParentData extends ContainerBoxParentData<RenderDayItemWidget
     startCol = -1;
     colSpan = -1;
   }
-
-  @override
-  String toString() {
-    return 'DayViewWidgetParentData{hourHeight: $hourHeight, numColumns: $numColumns, startCol: $startCol, colSpan: $colSpan, endCol: $endCol}';
-  }
 }
 
 class RenderDayViewWidget extends RenderBox
@@ -97,6 +117,7 @@ class RenderDayViewWidget extends RenderBox
     required double height,
     required DateTime date,
     required Duration dragStep,
+    required RenderDayItemWidget dragRenderObject,
     required ValueSetter<DateTimeRange>? onNewEvent,
     required ValueSetter<bool>? onDraggingStateChange,
     required double leftInset,
@@ -104,6 +125,7 @@ class RenderDayViewWidget extends RenderBox
   })  : _height = height,
         _date = date,
         _dragStep = dragStep,
+        _dragRenderObject = dragRenderObject,
         _onNewEvent = onNewEvent,
         _onDraggingStateChange = onDraggingStateChange,
         _leftInset = leftInset,
@@ -155,55 +177,94 @@ class RenderDayViewWidget extends RenderBox
     _dragStep = value;
   }
 
-  late final TapGestureRecognizer _tapGestureRecognizer;
+  late RenderDayItemWidget? _dragRenderObject;
+  set dragRenderObject(RenderDayItemWidget? value) {
+    if (_dragRenderObject == value) return;
+    _dragRenderObject = value;
+    markNeedsLayout();
+  }
+
+  late final CalendarGestureDetector _gestureDetector;
+
+  DateTime? _dragStart;
+  DateTime? _dragEnd;
 
   @override
   void attach(covariant PipelineOwner owner) {
     super.attach(owner);
-    _tapGestureRecognizer = TapGestureRecognizer(debugOwner: this)
-      ..onTapUp = (details) {
-        _handleOnTap(details.localPosition);
-      };
+
+    _dragRenderObject?.attach(owner);
+
+    _gestureDetector = CalendarGestureDetector(
+      onTap: _handleOnTap,
+      onLongPress: _startDragging,
+      onVerticalDragUpdate: _updateDragging,
+      onVerticalDragEnd: _endDragging,
+      longPressDragEnabled: true,
+      onChildHit: (offset) => defaultHitTestChildren(BoxHitTestResult(), position: offset),
+    );
+  }
+
+  @override
+  void detach() {
+    _dragRenderObject?.detach();
+    super.detach();
   }
 
   @override
   void handleEvent(PointerEvent event, covariant HitTestEntry<HitTestTarget> entry) {
     assert(debugHandleEvent(event, entry));
 
-    if (event is PointerDownEvent) {
-      _tapGestureRecognizer.addPointer(event);
-    }
+    _gestureDetector.handleEvent(event);
   }
 
-  void _handleOnTap(Offset localPosition) {
-    final hitChild = defaultHitTestChildren(BoxHitTestResult(), position: localPosition);
-    if (!hitChild) {
-      bool disabledDragging = false;
-      loopChildren((child) {
-        if (child.parentData?.draggable == true) {
-          child.stopDragging();
-          disabledDragging = true;
-        }
-      });
-
-      if (!disabledDragging) {
-        _onNewEvent?.call(_selectedRange(localPosition));
+  void _handleOnTap() {
+    loopChildren((child) {
+      if (child.parentData?.draggable == true) {
+        child.stopDragging();
       }
-    }
+    });
+    markCountDraggables();
   }
 
-  DateTimeRange _selectedRange(Offset localPosition) {
-    final start = offsetToDateTime(localPosition);
-    final end = start.add(const Duration(minutes: 60));
+  void _startDragging() {
+    final offset = _gestureDetector.lastPointer;
+    if (offset == null) return;
+    final yOffset = offset.dy;
 
-    return DateTimeRange(start: start, end: end);
+    _dragStart = offsetToDateTime(yOffset);
+    _dragEnd = _dragStart?.copyWith().add(_dragStep);
+    markDragChildNeedsLayout();
   }
 
-  DateTime offsetToDateTime(Offset offset) {
+  void _updateDragging(double delta) {
+    final offset = _gestureDetector.lastPointer;
+    if (offset == null) return;
+    final yOffset = offset.dy;
+
+    _dragEnd = offsetToDateTime(yOffset);
+    markDragChildNeedsLayout();
+  }
+
+  void _endDragging(double delta) {
+    if (_dragStart == null || _dragEnd == null) return;
+
+    _onNewEvent?.call(DateTimeRange(start: _dragStart!, end: _dragEnd!));
+
+    _dragEnd = null;
+    _dragStart = null;
+    markDragChildNeedsLayout();
+  }
+
+  DateTime offsetToDateTime(double yOffset) {
     final hourHeight = _height / 24;
-    final hour = offset.dy ~/ hourHeight;
+    final hour = yOffset ~/ hourHeight;
 
-    return _date.midnight.add(Duration(hours: hour));
+    // Minutes go in intervals
+    var minutes = ((yOffset % hourHeight) / hourHeight * 60).round();
+    minutes = (minutes ~/ _dragStep.inMinutes) * _dragStep.inMinutes;
+
+    return _date.midnight.add(Duration(hours: hour, minutes: minutes));
   }
 
   @override
@@ -255,10 +316,36 @@ class RenderDayViewWidget extends RenderBox
         ),
       );
     });
+
+    layoutDragChild();
+  }
+
+  void layoutDragChild() {
+    if (_dragStart != null && _dragEnd != null) {
+      final start = _dragStart!;
+      final end = _dragEnd!;
+
+      _dragRenderObject?.start = start;
+      _dragRenderObject?.end = end;
+
+      final yOffset = (start.hour + (start.minute / 60)) * (_height / 24);
+
+      _dragRenderObject?.parentData?.offset = Offset(_leftInset, yOffset);
+      _dragRenderObject?.layout(
+        constraints.copyWith(
+          minWidth: 0,
+          maxHeight: _height,
+        ),
+      );
+    }
+  }
+
+  void markDragChildNeedsLayout() {
+    layoutDragChild();
+    markNeedsPaint();
   }
 
   void markNeedsRecalculate() {
-    debugPrint('Marking needs recalculate');
     loopChildren((child) {
       child.parentData!.reset();
       child.markNeedsLayout();
@@ -319,8 +406,6 @@ class RenderDayViewWidget extends RenderBox
         // No overlap, our colspan is the number of columns minus our startCol
         childParentData.colSpan = numColumns - childParentData.startCol;
       }
-
-      debugPrint(childParentData.toString());
     });
 
     return numColumns;
@@ -407,6 +492,12 @@ class RenderDayViewWidget extends RenderBox
       final childParentData = child.parentData!;
       context.paintChild(child, childParentData.offset + offset);
     });
+
+    // Paint the drag child when we are dragging for a new item
+    if (_dragRenderObject != null && _dragStart != null && _dragEnd != null) {
+      final childParentData = _dragRenderObject!.parentData!;
+      context.paintChild(_dragRenderObject!, childParentData.offset + offset);
+    }
   }
 
   void _drawText(Canvas canvas, Offset offset, String s) {
