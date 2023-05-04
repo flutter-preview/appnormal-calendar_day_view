@@ -65,8 +65,13 @@ class _MyAppState extends State<MyApp> {
                     onDraggingStateChange: (isDragging) {
                       setState(() => this.isDragging = isDragging);
                     },
-                    onNewItemBuilder: (_) {
-                      return Container(color: Colors.green, child: const SizedBox.expand());
+                    onNewItemBuilder: () {
+                      return Container(
+                        color: Colors.green.withOpacity(.5),
+                        child: const Center(
+                          child: Text('New item'),
+                        ),
+                      );
                     },
                     onNewEvent: (range) {
                       setState(() {

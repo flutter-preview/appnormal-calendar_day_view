@@ -40,10 +40,6 @@ class CalendarGestureDetector {
           return;
         }
 
-        if (onChildHit?.call(details.localPosition) ?? false) {
-          return;
-        }
-
         final delta = details.localPosition - lastPointer!;
         lastPointer = details.localPosition;
         onVerticalDragUpdate?.call(delta.dy);

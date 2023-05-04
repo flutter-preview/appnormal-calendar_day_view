@@ -21,10 +21,13 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
     required this.start,
     required this.end,
     this.onItemDragEnd,
-    this.toggleDraggableAction,
+    this.toggleDraggableAction = ToggleDraggableAction.onLongPress,
     this.drawTopDragHandle,
     this.drawBottomDragHandle,
+    this.isForNewItem = false,
   });
+
+  final bool isForNewItem;
 
   // The start time of the item in the day view.
   final DateTime start;
@@ -47,6 +50,7 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
     return RenderDayItemWidget(
       start: start,
       end: end,
+      isForNewItem: isForNewItem,
       onItemDragEnd: onItemDragEnd,
       toggleDraggableAction: toggleDraggableAction,
       drawTopDragHandle: drawTopDragHandle,
@@ -59,6 +63,7 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
     renderObject
       ..start = start
       ..end = end
+      ..isForNewItem = isForNewItem
       ..onItemDragEnd = onItemDragEnd
       ..toggleDraggableAction = toggleDraggableAction
       ..drawTopDragHandle = drawTopDragHandle
@@ -70,12 +75,14 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   RenderDayItemWidget({
     required DateTime start,
     required DateTime end,
+    bool isForNewItem = false,
     ValueChanged<DateTimeRange>? onItemDragEnd,
     ToggleDraggableAction? toggleDraggableAction,
     DragHandlePainter? drawTopDragHandle,
     DragHandlePainter? drawBottomDragHandle,
   })  : _start = start,
         _end = end,
+        _isForNewItem = isForNewItem,
         _onItemDragEnd = onItemDragEnd,
         _toggleDraggableAction = toggleDraggableAction,
         _drawTopDragHandle = drawTopDragHandle,
@@ -83,6 +90,8 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
 
   DateTime _start;
   DateTime _end;
+  bool _isForNewItem;
+
   ValueChanged<DateTimeRange>? _onItemDragEnd;
 
   DateTime? _draggedStart;
@@ -96,7 +105,7 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
 
   _ActiveHandle? _activeHandle;
 
-  late final CalendarGestureDetector _gestureDetector;
+  CalendarGestureDetector? _gestureDetector;
 
   @override
   DayViewWidgetParentData? get parentData => super.parentData as DayViewWidgetParentData?;
@@ -110,7 +119,10 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   set start(DateTime value) {
     if (_start == value) return;
     _start = value;
-    markParentNeedsRecalculate();
+
+    if (!_isForNewItem) {
+      markParentNeedsRecalculate();
+    }
   }
 
   DateTime get end => (_draggedEnd ?? _end).isAfter(parentData!.date.add(const Duration(days: 1)))
@@ -119,7 +131,10 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   set end(DateTime value) {
     if (_end == value) return;
     _end = value;
-    markParentNeedsRecalculate();
+
+    if (!_isForNewItem) {
+      markParentNeedsRecalculate();
+    }
   }
 
   ToggleDraggableAction? get toggleDraggableAction => _toggleDraggableAction;
@@ -146,70 +161,79 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
     _onItemDragEnd = value;
   }
 
+  bool get isForNewItem => _isForNewItem;
+  set isForNewItem(bool value) {
+    if (_isForNewItem == value) return;
+    _isForNewItem = value;
+    markNeedsPaint();
+  }
+
   @override
   void setupParentData(covariant RenderObject child) {
     super.setupParentData(child);
+
     parentData?.draggable = false;
+    parentData?.isNewItem = _isForNewItem;
+  }
+
+  void _toggleDraggable() {
+    parentData!.draggable = !parentData!.draggable;
+    markNeedsPaint();
+    markParentCountDraggables();
+  }
+
+  void _onVerticalDragStart(double yOffset) {
+    if (!parentData!.draggable) {
+      return;
+    }
+
+    final draggingStart = yOffset < dragHandleHeight;
+    final draggingEnd = yOffset > size.height - dragHandleHeight;
+
+    if (draggingStart) {
+      _activeHandle = _ActiveHandle.start;
+    } else if (draggingEnd) {
+      _activeHandle = _ActiveHandle.end;
+    } else {
+      _activeHandle = _ActiveHandle.middle;
+    }
+  }
+
+  void _onVerticalDragUpdate(double delta) {
+    if (parentData!.draggable && _activeHandle != null) {
+      _cumulativeDelta += delta;
+
+      final seconds = (_cumulativeDelta / parentData!.hourHeight * 3600).round();
+
+      if (seconds.abs() > parentData!.dragStep.inSeconds) {
+        _cumulativeDelta = 0;
+        if (_activeHandle == _ActiveHandle.start) {
+          _draggedStart = start.add(Duration(seconds: seconds));
+        } else if (_activeHandle == _ActiveHandle.end) {
+          _draggedEnd = end.add(Duration(seconds: seconds));
+        } else if (_activeHandle == _ActiveHandle.middle) {
+          _draggedStart = start.add(Duration(seconds: seconds));
+          _draggedEnd = end.add(Duration(seconds: seconds));
+        }
+
+        // Limit the calendar item period to a minimum of 5 minutes
+        if (end.isBefore(start)) {
+          _draggedEnd = start.copyWith().add(const Duration(minutes: 5));
+        }
+        markParentNeedsRecalculate();
+      }
+    }
   }
 
   @override
   void attach(covariant PipelineOwner owner) {
     super.attach(owner);
 
-    void toggleDraggable() {
-      parentData!.draggable = !parentData!.draggable;
-      markNeedsPaint();
-      markParentCountDraggables();
-    }
-
-    void onVerticalDragStart(double yOffset) {
-      if (!parentData!.draggable) {
-        return;
-      }
-
-      final draggingStart = yOffset < dragHandleHeight;
-      final draggingEnd = yOffset > size.height - dragHandleHeight;
-
-      if (draggingStart) {
-        _activeHandle = _ActiveHandle.start;
-      } else if (draggingEnd) {
-        _activeHandle = _ActiveHandle.end;
-      } else {
-        _activeHandle = _ActiveHandle.middle;
-      }
-    }
-
-    void onVerticalDragUpdate(double delta) {
-      if (parentData!.draggable && _activeHandle != null) {
-        _cumulativeDelta += delta;
-
-        final seconds = (_cumulativeDelta / parentData!.hourHeight * 3600).round();
-
-        if (seconds.abs() > parentData!.dragStep.inSeconds) {
-          _cumulativeDelta = 0;
-          if (_activeHandle == _ActiveHandle.start) {
-            _draggedStart = start.add(Duration(seconds: seconds));
-          } else if (_activeHandle == _ActiveHandle.end) {
-            _draggedEnd = end.add(Duration(seconds: seconds));
-          } else if (_activeHandle == _ActiveHandle.middle) {
-            _draggedStart = start.add(Duration(seconds: seconds));
-            _draggedEnd = end.add(Duration(seconds: seconds));
-          }
-
-          // Limit the calendar item period to a minimum of 5 minutes
-          if (end.isBefore(start)) {
-            _draggedEnd = start.copyWith().add(const Duration(minutes: 5));
-          }
-          markParentNeedsRecalculate();
-        }
-      }
-    }
-
-    _gestureDetector = CalendarGestureDetector(
-      onTap: _toggleDraggableAction == ToggleDraggableAction.onTap ? toggleDraggable : null,
-      onLongPress: _toggleDraggableAction == ToggleDraggableAction.onLongPress ? toggleDraggable : null,
-      onVerticalDragStart: onVerticalDragStart,
-      onVerticalDragUpdate: onVerticalDragUpdate,
+    _gestureDetector ??= CalendarGestureDetector(
+      onTap: _toggleDraggableAction == ToggleDraggableAction.onTap ? _toggleDraggable : null,
+      onLongPress: _toggleDraggableAction == ToggleDraggableAction.onLongPress ? _toggleDraggable : null,
+      onVerticalDragStart: _onVerticalDragStart,
+      onVerticalDragUpdate: _onVerticalDragUpdate,
     );
   }
 
@@ -217,7 +241,7 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   void handleEvent(PointerEvent event, covariant HitTestEntry<HitTestTarget> entry) {
     assert(debugHandleEvent(event, entry));
 
-    _gestureDetector.handleEvent(event);
+    _gestureDetector?.handleEvent(event);
   }
 
   Size _performLayout(BoxConstraints constraints, {required bool dry}) {
@@ -276,7 +300,9 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
 
     if (child != null) {
       context.paintChild(child!, topLeft);
+      if (parentData?.isNewItem == true) print('paint new item $size');
     }
+
     if (parentData?.draggable == true) {
       context.canvas.save();
       context.canvas.translate(topLeft.dx, topLeft.dy);
