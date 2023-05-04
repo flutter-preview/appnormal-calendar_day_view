@@ -552,18 +552,13 @@ class RenderDayViewWidget extends RenderBox
           return child.hitTest(result, position: transformed);
         },
       );
-      if (isHit) {
-        return true;
-      }
 
-      return null;
+      return isHit == true ? true : null;
     });
 
     return hit ?? false;
   }
 
   @override
-  bool hitTestSelf(Offset position) {
-    return true;
-  }
+  bool hitTestSelf(Offset position) => true;
 }

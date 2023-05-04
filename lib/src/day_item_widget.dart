@@ -300,14 +300,7 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
 
   @override
   void performLayout() {
-    if (parentData?.isNewItem == true) {
-      print('request performLayout for new item');
-    }
-
     if (parentData?.needsLayout == true) {
-      if (parentData?.isNewItem == true) {
-        print('Needs layout for new item');
-      }
       size = _performLayout(constraints, dry: false);
       parentData?.needsLayout = false;
     }
@@ -327,7 +320,6 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
 
     if (child != null) {
       context.paintChild(child!, topLeft);
-      if (parentData?.isNewItem == true) print('paint new item $size');
     }
 
     if (parentData?.draggable == true) {
