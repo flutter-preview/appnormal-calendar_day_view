@@ -1,4 +1,5 @@
 import 'package:calendar_day_view/src/calendar_gesture_detector.dart';
+import 'package:calendar_day_view/src/day_view_parent_data.dart';
 import 'package:calendar_day_view/src/day_view_widget.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -99,6 +100,8 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   set draggedStart(DateTime? value) {
     if (_draggedStart == value) return;
     _draggedStart = value;
+
+    parentData?.pendingDragChange = true;
     parentData?.needsLayout = true;
   }
 
@@ -107,6 +110,8 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   set draggedEnd(DateTime? value) {
     if (_draggedEnd == value) return;
     _draggedEnd = value;
+
+    parentData?.pendingDragChange = true;
     parentData?.needsLayout = true;
   }
 
@@ -190,6 +195,7 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
 
     parentData?.draggable = false;
     parentData?.isNewItem = _isForNewItem;
+    parentData?.firstLayout = true;
   }
 
   void _toggleDraggable() {
@@ -236,6 +242,8 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
         if (end.isBefore(start)) {
           draggedEnd = start.copyWith().add(const Duration(minutes: 5));
         }
+
+        parentData!.needsLayout = true;
         markParentNeedsRecalculate();
       }
     }
@@ -295,6 +303,8 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
     _cumulativeDelta = 0;
     draggedStart = null;
     draggedEnd = null;
+
+    parentData!.needsLayout = true;
     markNeedsPaint();
   }
 

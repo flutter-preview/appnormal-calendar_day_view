@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:calendar_day_view/calendar_day_view.dart';
 import 'package:calendar_day_view/src/calendar_gesture_detector.dart';
+import 'package:calendar_day_view/src/day_view_parent_data.dart';
 import 'package:calendar_day_view/src/extension.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -67,65 +68,6 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
       ..onDraggingStateChange = onDraggingStateChange
       ..onNewEvent = onNewEvent
       ..textStyle = textStyle;
-  }
-}
-
-class DayViewWidgetParentData extends ContainerBoxParentData<RenderDayItemWidget> {
-  DayViewWidgetParentData({
-    required this.hourHeight,
-    required this.date,
-    required this.dragStep,
-    bool draggable = false,
-    this.isNewItem = false,
-    this.left = 0,
-  }) : _draggable = draggable;
-
-  final double hourHeight;
-  final DateTime date;
-  final Duration dragStep;
-  bool needsLayout = true;
-  bool isNewItem;
-  double left;
-
-  bool _draggable;
-  bool get draggable => _draggable;
-  set draggable(bool value) {
-    if (_draggable == value) return;
-
-    _draggable = value;
-    needsLayout = true;
-  }
-
-  int _numColumns = 1;
-  int get numColumns => _numColumns;
-  set numColumns(int value) {
-    if (_numColumns == value) return;
-    _numColumns = value;
-    needsLayout = true;
-  }
-
-  int _startCol = -1;
-  int get startCol => _startCol;
-  set startCol(int value) {
-    if (_startCol == value) return;
-    _startCol = value;
-    needsLayout = true;
-  }
-
-  int _colSpan = -1;
-  int get colSpan => _colSpan;
-  set colSpan(int value) {
-    if (_colSpan == value) return;
-    _colSpan = value;
-    needsLayout = true;
-  }
-
-  int get endCol => startCol + colSpan;
-
-  void reset() {
-    numColumns = 1;
-    startCol = -1;
-    colSpan = -1;
   }
 }
 
@@ -392,6 +334,8 @@ class RenderDayViewWidget extends RenderBox
 
       if (childParentData.isNewItem) return;
 
+      childParentData.pendingColChange = true;
+
       // Check if we already calculated this child
       if (childParentData.startCol == -1) {
         final parent = _overlapOnIndex(child);
@@ -435,6 +379,8 @@ class RenderDayViewWidget extends RenderBox
 
       childParentData.numColumns = numColumns;
       childParentData.colSpan = newColSpan;
+
+      childParentData.checkNeedsLayout();
     });
 
     this.numColumns = numColumns;
