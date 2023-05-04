@@ -94,14 +94,27 @@ class _MyAppState extends State<MyApp> {
                   width: double.infinity,
                   color: Colors.black.withOpacity(.5),
                   padding: const EdgeInsets.all(16),
-                  child: ElevatedButton(
-                    onPressed: () {
-                      setState(() => children.add(randomItem()));
-                    },
-                    style: const ButtonStyle(
-                      padding: MaterialStatePropertyAll(EdgeInsets.all(20)),
-                    ),
-                    child: const Text('Add random item'),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () {
+                          setState(() => children.add(randomItem()));
+                        },
+                        style: const ButtonStyle(
+                          padding: MaterialStatePropertyAll(EdgeInsets.all(20)),
+                        ),
+                        child: const Text('Add random item'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () => setState(children.clear),
+                        style: const ButtonStyle(
+                          padding: MaterialStatePropertyAll(EdgeInsets.all(20)),
+                        ),
+                        child: const Text('Clear'),
+                      ),
+                    ],
                   ),
                 ),
               )

@@ -95,7 +95,21 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   ValueChanged<DateTimeRange>? _onItemDragEnd;
 
   DateTime? _draggedStart;
+  DateTime? get draggedStart => _draggedStart;
+  set draggedStart(DateTime? value) {
+    if (_draggedStart == value) return;
+    _draggedStart = value;
+    parentData?.needsLayout = true;
+  }
+
   DateTime? _draggedEnd;
+  DateTime? get draggedEnd => _draggedEnd;
+  set draggedEnd(DateTime? value) {
+    if (_draggedEnd == value) return;
+    _draggedEnd = value;
+    parentData?.needsLayout = true;
+  }
+
   double _cumulativeDelta = 0;
 
   ToggleDraggableAction? _toggleDraggableAction;
@@ -115,22 +129,24 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   }
 
   DateTime get start =>
-      (_draggedStart ?? _start).isBefore(parentData!.date) ? parentData!.date : (_draggedStart ?? _start);
+      (draggedStart ?? _start).isBefore(parentData!.date) ? parentData!.date : (draggedStart ?? _start);
   set start(DateTime value) {
     if (_start == value) return;
     _start = value;
 
+    parentData?.needsLayout = true;
     if (!_isForNewItem) {
       markParentNeedsRecalculate();
     }
   }
 
-  DateTime get end => (_draggedEnd ?? _end).isAfter(parentData!.date.add(const Duration(days: 1)))
+  DateTime get end => (draggedEnd ?? _end).isAfter(parentData!.date.add(const Duration(days: 1)))
       ? parentData!.date.add(const Duration(days: 1))
-      : (_draggedEnd ?? _end);
+      : (draggedEnd ?? _end);
   set end(DateTime value) {
     if (_end == value) return;
     _end = value;
+    parentData?.needsLayout = true;
 
     if (!_isForNewItem) {
       markParentNeedsRecalculate();
@@ -208,17 +224,17 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
       if (seconds.abs() > parentData!.dragStep.inSeconds) {
         _cumulativeDelta = 0;
         if (_activeHandle == _ActiveHandle.start) {
-          _draggedStart = start.add(Duration(seconds: seconds));
+          draggedStart = start.add(Duration(seconds: seconds));
         } else if (_activeHandle == _ActiveHandle.end) {
-          _draggedEnd = end.add(Duration(seconds: seconds));
+          draggedEnd = end.add(Duration(seconds: seconds));
         } else if (_activeHandle == _ActiveHandle.middle) {
-          _draggedStart = start.add(Duration(seconds: seconds));
-          _draggedEnd = end.add(Duration(seconds: seconds));
+          draggedStart = start.add(Duration(seconds: seconds));
+          draggedEnd = end.add(Duration(seconds: seconds));
         }
 
         // Limit the calendar item period to a minimum of 5 minutes
         if (end.isBefore(start)) {
-          _draggedEnd = start.copyWith().add(const Duration(minutes: 5));
+          draggedEnd = start.copyWith().add(const Duration(minutes: 5));
         }
         markParentNeedsRecalculate();
       }
@@ -254,8 +270,9 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
     final endOffset = (end.hour + (end.minute / 60)) * hourHeight;
 
     final height = endOffset - startOffset;
-    final columnWidth = (constraints.maxWidth - parentData!.left) / parentData!.numColumns;
-    final width = columnWidth * parentData!.colSpan;
+    final maxWidth = (constraints.maxWidth - parentData!.left);
+    final columnWidth = maxWidth / parentData!.numColumns;
+    final width = parentData!.isNewItem ? maxWidth : columnWidth * parentData!.colSpan;
 
     if (!dry) {
       final childConstraints = BoxConstraints(
@@ -276,14 +293,24 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
 
     _activeHandle = null;
     _cumulativeDelta = 0;
-    _draggedStart = null;
-    _draggedEnd = null;
+    draggedStart = null;
+    draggedEnd = null;
     markNeedsPaint();
   }
 
   @override
   void performLayout() {
-    size = _performLayout(constraints, dry: false);
+    if (parentData?.isNewItem == true) {
+      print('request performLayout for new item');
+    }
+
+    if (parentData?.needsLayout == true) {
+      if (parentData?.isNewItem == true) {
+        print('Needs layout for new item');
+      }
+      size = _performLayout(constraints, dry: false);
+      parentData?.needsLayout = false;
+    }
   }
 
   @override

@@ -75,21 +75,50 @@ class DayViewWidgetParentData extends ContainerBoxParentData<RenderDayItemWidget
     required this.hourHeight,
     required this.date,
     required this.dragStep,
-    this.draggable = false,
+    bool draggable = false,
     this.isNewItem = false,
     this.left = 0,
-  });
+  }) : _draggable = draggable;
 
   final double hourHeight;
   final DateTime date;
   final Duration dragStep;
+  bool needsLayout = true;
   bool isNewItem;
-  bool draggable;
   double left;
 
-  int numColumns = 1;
-  int startCol = -1;
-  int colSpan = -1;
+  bool _draggable;
+  bool get draggable => _draggable;
+  set draggable(bool value) {
+    if (_draggable == value) return;
+
+    _draggable = value;
+    needsLayout = true;
+  }
+
+  int _numColumns = 1;
+  int get numColumns => _numColumns;
+  set numColumns(int value) {
+    if (_numColumns == value) return;
+    _numColumns = value;
+    needsLayout = true;
+  }
+
+  int _startCol = -1;
+  int get startCol => _startCol;
+  set startCol(int value) {
+    if (_startCol == value) return;
+    _startCol = value;
+    needsLayout = true;
+  }
+
+  int _colSpan = -1;
+  int get colSpan => _colSpan;
+  set colSpan(int value) {
+    if (_colSpan == value) return;
+    _colSpan = value;
+    needsLayout = true;
+  }
 
   int get endCol => startCol + colSpan;
 
@@ -250,7 +279,7 @@ class RenderDayViewWidget extends RenderBox
     return DateTimeRange(start: start, end: end);
   }
 
-  DateTime offsetToDateTime(double yOffset) {
+  DateTime offsetToDateTime(double yOffset, {bool onlyHours = false}) {
     final hourHeight = _height / 24;
     final hour = yOffset ~/ hourHeight;
 
@@ -258,7 +287,7 @@ class RenderDayViewWidget extends RenderBox
     var minutes = ((yOffset % hourHeight) / hourHeight * 60).round();
     minutes = (minutes ~/ _dragStep.inMinutes) * _dragStep.inMinutes;
 
-    return _date.midnight.add(Duration(hours: hour, minutes: minutes));
+    return _date.midnight.add(Duration(hours: hour, minutes: onlyHours ? 0 : minutes));
   }
 
   @override
@@ -330,6 +359,7 @@ class RenderDayViewWidget extends RenderBox
       child.start = range.start;
       child.end = range.end;
 
+      child.markNeedsLayout();
       layoutChild(child);
     });
 
@@ -392,16 +422,19 @@ class RenderDayViewWidget extends RenderBox
         startCol: childParentData.startCol,
         numColumns: numColumns,
       );
+
+      final int newColSpan;
       if (firstOverlapToTheRight != null) {
         // Overlap, our colspan is the difference between the two startCols
         final firstOverlapToTheRightParentData = firstOverlapToTheRight.parentData!;
-        childParentData.colSpan = firstOverlapToTheRightParentData.startCol - childParentData.startCol;
+        newColSpan = firstOverlapToTheRightParentData.startCol - childParentData.startCol;
       } else {
         // No overlap, our colspan is the number of columns minus our startCol
-        childParentData.colSpan = numColumns - childParentData.startCol;
+        newColSpan = numColumns - childParentData.startCol;
       }
 
       childParentData.numColumns = numColumns;
+      childParentData.colSpan = newColSpan;
     });
 
     this.numColumns = numColumns;
