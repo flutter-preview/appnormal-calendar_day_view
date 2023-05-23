@@ -34,9 +34,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
               child: onNewItemBuilder(),
             ),
           ],
-        ) {
-    print('Creating a new DayViewWidget with date $date');
-  }
+        );
 
   final double height;
   final double leftInset;
