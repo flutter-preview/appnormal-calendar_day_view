@@ -28,13 +28,15 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
           children: [
             ...children,
             DayItemWidget(
-              start: DateTime.now(),
-              end: DateTime.now(),
+              start: date,
+              end: date,
               isForNewItem: true,
               child: onNewItemBuilder(),
             ),
           ],
-        );
+        ) {
+    print('Creating a new DayViewWidget with date $date');
+  }
 
   final double height;
   final double leftInset;
@@ -241,6 +243,7 @@ class RenderDayViewWidget extends RenderBox
       resetColumns = true;
 
       // Give the new child a fresh parent data
+
       child.parentData = DayViewWidgetParentData(
         hourHeight: _height / 24,
         date: _date.midnight,
