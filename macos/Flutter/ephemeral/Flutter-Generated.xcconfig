@@ -1,6 +1,6 @@
 // This is a generated file; do not edit or check into version control.
 FLUTTER_ROOT=/Users/markmooibroek/fvm/versions/3.7.3
-FLUTTER_APPLICATION_PATH=/Users/markmooibroek/Projects/flutter/calendar_day_view
+FLUTTER_APPLICATION_PATH=/Users/markmooibroek/Projects/flutter/flutter_calendar_view
 COCOAPODS_PARALLEL_CODE_SIGN=true
 FLUTTER_BUILD_DIR=build
 FLUTTER_BUILD_NAME=0.0.1

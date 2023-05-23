@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:calendar_day_view/calendar_day_view.dart';
+import 'package:flutter_calendar_view/flutter_calendar_view.dart';
 
 void main() {
   runApp(const MyApp());
@@ -40,13 +40,13 @@ class _MyAppState extends State<MyApp> {
     final isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
 
     return MaterialApp(
-      title: 'calendar_day_view',
+      title: 'flutter_calendar_view',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
       home: Scaffold(
         appBar: AppBar(
-          title: const Text('calendar_day_view example'),
+          title: const Text('flutter_calendar_view example'),
         ),
         body: Container(
           color: Colors.white,

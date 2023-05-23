@@ -1,6 +1,6 @@
-import 'package:calendar_day_view/src/calendar_gesture_detector.dart';
-import 'package:calendar_day_view/src/day_view_parent_data.dart';
-import 'package:calendar_day_view/src/day_view_widget.dart';
+import 'package:flutter_calendar_view/src/calendar_gesture_detector.dart';
+import 'package:flutter_calendar_view/src/day_view_parent_data.dart';
+import 'package:flutter_calendar_view/src/day_view_widget.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';

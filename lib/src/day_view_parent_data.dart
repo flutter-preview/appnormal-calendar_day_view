@@ -1,4 +1,4 @@
-import 'package:calendar_day_view/calendar_day_view.dart';
+import 'package:flutter_calendar_view/flutter_calendar_view.dart';
 import 'package:flutter/rendering.dart';
 
 class DayViewWidgetParentData extends ContainerBoxParentData<RenderDayItemWidget> {

@@ -1,7 +1,7 @@
-name: calendar_day_view
+name: flutter_calendar_view
 description: A package that provides a customizable day view calendar widget.
 version: 0.0.1
-homepage:
+homepage: https://github.com/appnormal/flutter_calendar_view
 
 environment:
   sdk: '>=2.19.2 <3.0.0'
