@@ -1,6 +1,5 @@
 import 'dart:math';
 
-
 import 'package:flutter_calendar_view/flutter_calendar_view.dart';
 import 'package:flutter_calendar_view/src/calendar_gesture_detector.dart';
 import 'package:flutter_calendar_view/src/day_view_parent_data.dart';
@@ -509,4 +508,15 @@ class RenderDayViewWidget extends RenderBox
 
   @override
   bool hitTestSelf(Offset position) => true;
+
+  @override
+  void visitChildrenForSemantics(RenderObjectVisitor visitor) {
+    loopChildren((child) {
+      final childParentData = child.parentData!;
+
+      if (childParentData.isNewItem) return;
+
+      visitor(child);
+    });
+  }
 }
