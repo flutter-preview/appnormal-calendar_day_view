@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_calendar_view/src/calendar_gesture_detector.dart';
 import 'package:flutter_calendar_view/src/day_view_parent_data.dart';
 import 'package:flutter_calendar_view/src/day_view_widget.dart';
@@ -26,6 +28,7 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
     this.drawTopDragHandle,
     this.drawBottomDragHandle,
     this.isForNewItem = false,
+    this.minimumAppointmentDuration = const Duration(minutes: 15),
   });
 
   final bool isForNewItem;
@@ -46,6 +49,8 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
   final DragHandlePainter? drawTopDragHandle;
   final DragHandlePainter? drawBottomDragHandle;
 
+  final Duration minimumAppointmentDuration;
+
   @override
   RenderDayItemWidget createRenderObject(BuildContext context) {
     return RenderDayItemWidget(
@@ -56,6 +61,7 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
       toggleDraggableAction: toggleDraggableAction,
       drawTopDragHandle: drawTopDragHandle,
       drawBottomDragHandle: drawBottomDragHandle,
+      minimumAppointmentDuration: minimumAppointmentDuration,
     );
   }
 
@@ -76,6 +82,7 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   RenderDayItemWidget({
     required DateTime start,
     required DateTime end,
+    required Duration minimumAppointmentDuration,
     bool isForNewItem = false,
     ValueChanged<DateTimeRange>? onItemDragEnd,
     ToggleDraggableAction? toggleDraggableAction,
@@ -87,7 +94,10 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
         _onItemDragEnd = onItemDragEnd,
         _toggleDraggableAction = toggleDraggableAction,
         _drawTopDragHandle = drawTopDragHandle,
-        _drawBottomDragHandle = drawBottomDragHandle;
+        _drawBottomDragHandle = drawBottomDragHandle,
+        _minimumAppointmentDuration = minimumAppointmentDuration;
+
+  final Duration _minimumAppointmentDuration;
 
   DateTime _start;
   DateTime _end;
@@ -145,9 +155,16 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
     }
   }
 
-  DateTime get end => (draggedEnd ?? _end).isAfter(parentData!.date.add(const Duration(days: 1)))
-      ? parentData!.date.add(const Duration(days: 1))
-      : (draggedEnd ?? _end);
+  DateTime get end {
+    final endDayIsAfterStartDay = (_draggedEnd ?? _end).day > start.day;
+
+    if (endDayIsAfterStartDay) {
+      return DateTime(start.year, start.month, start.day, 23, 59);
+    }
+
+    return (draggedEnd ?? _end);
+  }
+
   set end(DateTime value) {
     if (_end == value) return;
     _end = value;
@@ -232,15 +249,23 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
         if (_activeHandle == _ActiveHandle.start) {
           draggedStart = start.add(Duration(seconds: seconds));
         } else if (_activeHandle == _ActiveHandle.end) {
-          draggedEnd = end.add(Duration(seconds: seconds));
+          final newEnd = end.add(Duration(seconds: seconds));
+          final newDuration = start.difference(newEnd).abs();
+
+          // Check if remaining minutes is less then the minimum duration and stop before the appointment becomes too short
+          if (newDuration.inMinutes < _minimumAppointmentDuration.inMinutes) {
+            draggedEnd = start.add(_minimumAppointmentDuration);
+          } else {
+            draggedEnd = end.add(Duration(seconds: seconds));
+          }
         } else if (_activeHandle == _ActiveHandle.middle) {
           draggedStart = start.add(Duration(seconds: seconds));
           draggedEnd = end.add(Duration(seconds: seconds));
         }
 
-        // Limit the calendar item period to a minimum of 5 minutes
+        // Limit the calendar item period to a minimum of 15 minutes
         if (end.isBefore(start)) {
-          draggedEnd = start.copyWith().add(const Duration(minutes: 5));
+          draggedEnd = start.copyWith().add(const Duration(minutes: 15));
         }
 
         parentData!.needsLayout = true;
@@ -277,7 +302,8 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
     final startOffset = (start.hour + (start.minute / 60)) * hourHeight;
     final endOffset = (end.hour + (end.minute / 60)) * hourHeight;
 
-    final height = endOffset - startOffset;
+    // Min height should be a fourth of the hour height (15 minutes)
+    final height = max(endOffset - startOffset, (hourHeight / 4));
     final maxWidth = (constraints.maxWidth - parentData!.left);
     final columnWidth = maxWidth / parentData!.numColumns;
     final width = parentData!.isNewItem ? maxWidth : columnWidth * parentData!.colSpan;
