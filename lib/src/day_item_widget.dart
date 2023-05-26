@@ -265,7 +265,7 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
 
         // Limit the calendar item period to a minimum of 15 minutes
         if (end.isBefore(start)) {
-          draggedEnd = start.copyWith().add(const Duration(minutes: 15));
+          draggedEnd = start.copyWith().add(_minimumAppointmentDuration);
         }
 
         parentData!.needsLayout = true;
