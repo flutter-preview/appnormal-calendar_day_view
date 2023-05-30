@@ -14,13 +14,9 @@ extension DateTimeRangeEx on DateTimeRange {
 }
 
 extension DateTimeEx on DateTime {
-  DateTime get midnight => subtract(Duration(
-        hours: hour,
-        minutes: minute,
-        seconds: second,
-        milliseconds: millisecond,
-        microseconds: microsecond,
-      ));
+  DateTime get startOfDay => DateTime(year, month, day);
+
+  DateTime get endOfDay => DateTime(year, month, day, 23, 59, 59);
 }
 
 extension ContainerParentDataMixinEx<ChildType extends RenderObject,

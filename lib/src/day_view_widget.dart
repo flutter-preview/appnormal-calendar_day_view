@@ -229,7 +229,7 @@ class RenderDayViewWidget extends RenderBox
     var minutes = ((yOffset % hourHeight) / hourHeight * 60).round();
     minutes = (minutes ~/ _dragStep.inMinutes) * _dragStep.inMinutes;
 
-    return _date.midnight.add(Duration(hours: hour, minutes: onlyHours ? 0 : minutes));
+    return _date.startOfDay.add(Duration(hours: hour, minutes: onlyHours ? 0 : minutes));
   }
 
   @override
@@ -244,7 +244,7 @@ class RenderDayViewWidget extends RenderBox
 
       child.parentData = DayViewWidgetParentData(
         hourHeight: _height / 24,
-        date: _date.midnight,
+        date: _date.startOfDay,
         left: _leftInset,
         dragStep: _dragStep,
       );

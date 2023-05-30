@@ -6,6 +6,7 @@ import 'package:flutter_calendar_view/src/day_view_widget.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter_calendar_view/src/extension.dart';
 
 typedef DragHandlePainter = void Function(Canvas canvas, Size size);
 typedef DragChildBuilder = Widget Function(DateTime start, DateTime end);
@@ -78,7 +79,7 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
   }
 }
 
-class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<RenderObject> {
+class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<RenderObject>, WidgetsBindingObserver {
   RenderDayItemWidget({
     required DateTime start,
     required DateTime end,
@@ -95,7 +96,9 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
         _toggleDraggableAction = toggleDraggableAction,
         _drawTopDragHandle = drawTopDragHandle,
         _drawBottomDragHandle = drawBottomDragHandle,
-        _minimumAppointmentDuration = minimumAppointmentDuration;
+        _minimumAppointmentDuration = minimumAppointmentDuration {
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   final Duration _minimumAppointmentDuration;
 
@@ -143,8 +146,10 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
     return DateTimeRange(start: start, end: end);
   }
 
-  DateTime get start =>
-      (draggedStart ?? _start).isBefore(parentData!.date) ? parentData!.date : (draggedStart ?? _start);
+  DateTime get start {
+    return (draggedStart ?? _start).isBefore(parentData!.date) ? parentData!.date : (draggedStart ?? _start);
+  }
+
   set start(DateTime value) {
     if (_start == value) return;
     _start = value;
@@ -156,12 +161,6 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   }
 
   DateTime get end {
-    final endDayIsAfterStartDay = (_draggedEnd ?? _end).day > start.day;
-
-    if (endDayIsAfterStartDay) {
-      return DateTime(start.year, start.month, start.day, 23, 59);
-    }
-
     return (draggedEnd ?? _end);
   }
 
@@ -207,6 +206,20 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   }
 
   @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Disable dragging when the app is paused
+    if (state == AppLifecycleState.paused && parentData!.draggable) {
+      _toggleDraggable();
+    }
+  }
+
+  @override
   void setupParentData(covariant RenderObject child) {
     super.setupParentData(child);
 
@@ -244,33 +257,52 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
 
       final seconds = (_cumulativeDelta / parentData!.hourHeight * 3600).round();
 
-      if (seconds.abs() > parentData!.dragStep.inSeconds) {
-        _cumulativeDelta = 0;
-        if (_activeHandle == _ActiveHandle.start) {
-          draggedStart = start.add(Duration(seconds: seconds));
-        } else if (_activeHandle == _ActiveHandle.end) {
-          final newEnd = end.add(Duration(seconds: seconds));
-          final newDuration = start.difference(newEnd).abs();
+      if (seconds.abs() <= parentData!.dragStep.inSeconds) return;
 
-          // Check if remaining minutes is less then the minimum duration and stop before the appointment becomes too short
-          if (newDuration.inMinutes < _minimumAppointmentDuration.inMinutes) {
-            draggedEnd = start.add(_minimumAppointmentDuration);
-          } else {
-            draggedEnd = end.add(Duration(seconds: seconds));
-          }
-        } else if (_activeHandle == _ActiveHandle.middle) {
-          draggedStart = start.add(Duration(seconds: seconds));
-          draggedEnd = end.add(Duration(seconds: seconds));
-        }
+      DateTime newStart = start;
+      DateTime newEnd = end;
 
-        // Limit the calendar item period to a minimum of 15 minutes
-        if (end.isBefore(start)) {
-          draggedEnd = start.copyWith().add(_minimumAppointmentDuration);
-        }
-
-        parentData!.needsLayout = true;
-        markParentNeedsRecalculate();
+      _cumulativeDelta = 0;
+      if (_activeHandle == _ActiveHandle.start) {
+        newStart = start.add(Duration(seconds: seconds));
+      } else if (_activeHandle == _ActiveHandle.end) {
+        newEnd = end.add(Duration(seconds: seconds));
+      } else if (_activeHandle == _ActiveHandle.middle) {
+        newStart = start.add(Duration(seconds: seconds));
+        newEnd = end.add(Duration(seconds: seconds));
       }
+
+      final oldDuration = start.difference(end).abs();
+      final newDuration = newStart.difference(newEnd).abs();
+
+      // If the new start day is before the parent day, set it to the parent day to stay on the same day
+      if (newStart.day != parentData!.date.day) {
+        newStart = parentData!.date.startOfDay;
+
+        if (_activeHandle == _ActiveHandle.middle) {
+          newEnd = newStart.add(oldDuration);
+        }
+      }
+
+      // If the new end day is after the parent day, set it to the parent day to stay on the same day
+      if (newEnd.day != parentData!.date.day) {
+        newEnd = parentData!.date.endOfDay;
+
+        if (_activeHandle == _ActiveHandle.middle) {
+          newStart = newEnd.subtract(oldDuration);
+        }
+      }
+
+      // Make sure the appointment is at least the minimum duration
+      if (_activeHandle != _ActiveHandle.middle && newDuration < _minimumAppointmentDuration) {
+        return;
+      }
+
+      draggedStart = newStart;
+      draggedEnd = newEnd;
+
+      parentData!.needsLayout = true;
+      markParentNeedsRecalculate();
     }
   }
 
