@@ -29,7 +29,6 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
     this.drawTopDragHandle,
     this.drawBottomDragHandle,
     this.isForNewItem = false,
-    this.minimumAppointmentDuration = const Duration(minutes: 15),
   });
 
   final bool isForNewItem;
@@ -50,8 +49,6 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
   final DragHandlePainter? drawTopDragHandle;
   final DragHandlePainter? drawBottomDragHandle;
 
-  final Duration minimumAppointmentDuration;
-
   @override
   RenderDayItemWidget createRenderObject(BuildContext context) {
     return RenderDayItemWidget(
@@ -62,7 +59,6 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
       toggleDraggableAction: toggleDraggableAction,
       drawTopDragHandle: drawTopDragHandle,
       drawBottomDragHandle: drawBottomDragHandle,
-      minimumAppointmentDuration: minimumAppointmentDuration,
     );
   }
 
@@ -79,11 +75,10 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
   }
 }
 
-class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<RenderObject>, WidgetsBindingObserver {
+class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<RenderObject> {
   RenderDayItemWidget({
     required DateTime start,
     required DateTime end,
-    required Duration minimumAppointmentDuration,
     bool isForNewItem = false,
     ValueChanged<DateTimeRange>? onItemDragEnd,
     ToggleDraggableAction? toggleDraggableAction,
@@ -95,12 +90,7 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
         _onItemDragEnd = onItemDragEnd,
         _toggleDraggableAction = toggleDraggableAction,
         _drawTopDragHandle = drawTopDragHandle,
-        _drawBottomDragHandle = drawBottomDragHandle,
-        _minimumAppointmentDuration = minimumAppointmentDuration {
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  final Duration _minimumAppointmentDuration;
+        _drawBottomDragHandle = drawBottomDragHandle;
 
   DateTime _start;
   DateTime _end;
@@ -206,20 +196,6 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   }
 
   @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Disable dragging when the app is paused
-    if (state == AppLifecycleState.paused && parentData!.draggable) {
-      _toggleDraggable();
-    }
-  }
-
-  @override
   void setupParentData(covariant RenderObject child) {
     super.setupParentData(child);
 
@@ -255,25 +231,38 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
     if (parentData!.draggable && _activeHandle != null) {
       _cumulativeDelta += delta;
 
-      final seconds = (_cumulativeDelta / parentData!.hourHeight * 3600).round();
+      final draggDistance = (_cumulativeDelta / parentData!.hourHeight * 3600).round();
 
-      if (seconds.abs() <= parentData!.dragStep.inSeconds) return;
+      if (draggDistance.abs() <= parentData!.dragStep.inSeconds) return;
 
       DateTime newStart = start;
       DateTime newEnd = end;
 
+      final stepSeconds = draggDistance > 0 ? parentData!.dragStep.inSeconds : -parentData!.dragStep.inSeconds;
+
       _cumulativeDelta = 0;
       if (_activeHandle == _ActiveHandle.start) {
-        newStart = start.add(Duration(seconds: seconds));
+        newStart = start.add(Duration(seconds: stepSeconds));
       } else if (_activeHandle == _ActiveHandle.end) {
-        newEnd = end.add(Duration(seconds: seconds));
+        newEnd = end.add(Duration(seconds: stepSeconds));
       } else if (_activeHandle == _ActiveHandle.middle) {
-        newStart = start.add(Duration(seconds: seconds));
-        newEnd = end.add(Duration(seconds: seconds));
+        newStart = start.add(Duration(seconds: stepSeconds));
+        newEnd = end.add(Duration(seconds: stepSeconds));
       }
 
       final oldDuration = start.difference(end).abs();
       final newDuration = newStart.difference(newEnd).abs();
+
+      // min duration check
+      if (newDuration < parentData!.minimumDuration) {
+        // Moving the start handle.
+        if (_activeHandle == _ActiveHandle.start) {
+          newStart = newEnd.subtract(parentData!.minimumDuration);
+        }
+        if (_activeHandle == _ActiveHandle.end) {
+          newEnd = newStart.add(parentData!.minimumDuration);
+        }
+      }
 
       // If the new start day is before the parent day, set it to the parent day to stay on the same day
       if (newStart.day != parentData!.date.day) {
@@ -291,11 +280,6 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
         if (_activeHandle == _ActiveHandle.middle) {
           newStart = newEnd.subtract(oldDuration);
         }
-      }
-
-      // Make sure the appointment is at least the minimum duration
-      if (_activeHandle != _ActiveHandle.middle && newDuration < _minimumAppointmentDuration) {
-        return;
       }
 
       draggedStart = newStart;
@@ -332,7 +316,13 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
     final end = this.end;
 
     final startOffset = (start.hour + (start.minute / 60)) * hourHeight;
-    final endOffset = (end.hour + (end.minute / 60)) * hourHeight;
+
+    final double endOffset;
+    if (end.hour == 0 && end.minute == 0 && end.day != start.day) {
+      endOffset = 24 * hourHeight;
+    } else {
+      endOffset = (end.hour + (end.minute / 60)) * hourHeight;
+    }
 
     // Min height should be a fourth of the hour height (15 minutes)
     final height = max(endOffset - startOffset, (hourHeight / 4));

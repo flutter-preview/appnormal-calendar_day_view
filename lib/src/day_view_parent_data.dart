@@ -6,6 +6,7 @@ class DayViewWidgetParentData extends ContainerBoxParentData<RenderDayItemWidget
     required this.hourHeight,
     required this.date,
     required this.dragStep,
+    required this.minimumDuration,
     bool draggable = false,
     this.isNewItem = false,
     this.left = 0,
@@ -14,6 +15,8 @@ class DayViewWidgetParentData extends ContainerBoxParentData<RenderDayItemWidget
   final double hourHeight;
   final DateTime date;
   final Duration dragStep;
+  final Duration minimumDuration;
+
   bool needsLayout = true;
   bool isNewItem;
   double left;

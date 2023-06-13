@@ -25,7 +25,7 @@ class CalendarGestureDetector {
     bool longPressDragEnabled = false,
   }) {
     _tapGestureRecognizer = TapGestureRecognizer(debugOwner: this)
-      ..onTapDown = (details) {
+      ..onTapUp = (details) {
         if (onChildHit?.call(details.localPosition) ?? false) {
           return;
         }

@@ -16,7 +16,7 @@ extension DateTimeRangeEx on DateTimeRange {
 extension DateTimeEx on DateTime {
   DateTime get startOfDay => DateTime(year, month, day);
 
-  DateTime get endOfDay => DateTime(year, month, day, 23, 59, 59);
+  DateTime get endOfDay => startOfDay.add(const Duration(days: 1));
 }
 
 extension ContainerParentDataMixinEx<ChildType extends RenderObject,

@@ -1,3 +1,8 @@
+## 0.0.4
+
+* Fixed bugs in minumumDuration and long press range selection
+* Added tap to add an event to the calendar on that hour.
+
 ## 0.0.3
 
 * Fix bug where DayViewWidget could be dragged to the next or previous day

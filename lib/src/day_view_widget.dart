@@ -17,6 +17,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
     required this.date,
     this.leftInset = 55,
     this.dragStep = const Duration(seconds: 1),
+    this.minimumDuration = const Duration(minutes: 15),
     this.onNewEvent,
     this.onDraggingStateChange,
     this.textStyle = const TextStyle(
@@ -39,6 +40,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
   final double height;
   final double leftInset;
   final Duration dragStep;
+  final Duration minimumDuration;
   final DateTime date;
   final TextStyle textStyle;
 
@@ -51,6 +53,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
       height: height,
       date: date,
       dragStep: dragStep,
+      minimumDuration: minimumDuration,
       onNewEvent: onNewEvent,
       onDraggingStateChange: onDraggingStateChange,
       leftInset: leftInset,
@@ -64,6 +67,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
       ..height = height
       ..date = date
       ..dragStep = dragStep
+      ..minimumDuration = minimumDuration
       ..leftInset = leftInset
       ..onDraggingStateChange = onDraggingStateChange
       ..onNewEvent = onNewEvent
@@ -79,6 +83,7 @@ class RenderDayViewWidget extends RenderBox
     required double height,
     required DateTime date,
     required Duration dragStep,
+    required Duration minimumDuration,
     required ValueSetter<DateTimeRange>? onNewEvent,
     required ValueSetter<bool>? onDraggingStateChange,
     required double leftInset,
@@ -86,6 +91,7 @@ class RenderDayViewWidget extends RenderBox
   })  : _height = height,
         _date = date,
         _dragStep = dragStep,
+        _minimumDuration = minimumDuration,
         _onNewEvent = onNewEvent,
         _onDraggingStateChange = onDraggingStateChange,
         _leftInset = leftInset,
@@ -137,6 +143,12 @@ class RenderDayViewWidget extends RenderBox
     _dragStep = value;
   }
 
+  late Duration _minimumDuration;
+  set minimumDuration(Duration value) {
+    if (_minimumDuration == value) return;
+    _minimumDuration = value;
+  }
+
   CalendarGestureDetector? _gestureDetector;
 
   DateTime? _dragStart;
@@ -164,12 +176,36 @@ class RenderDayViewWidget extends RenderBox
     _gestureDetector?.handleEvent(event);
   }
 
-  void _handleOnTap() {
+  bool stopDragging() {
+    bool didStopDragging = false;
+    // Stop dragging any existing children
     loopChildren((child) {
       if (child.parentData?.draggable == true) {
         child.stopDragging();
+        didStopDragging = true;
       }
     });
+
+    // Stop dragging any new items
+    if (_dragEnd != null || _dragStart != null) didStopDragging = true;
+    _dragEnd = null;
+    _dragStart = null;
+
+    markNeedsPaint();
+
+    return didStopDragging;
+  }
+
+  void _handleOnTap() {
+    final tapLocation = _gestureDetector?.lastPointer;
+    final stoppedDragging = stopDragging();
+    if (!stoppedDragging && tapLocation != null) {
+      final range = offsetToDateTime(tapLocation.dy);
+      final start = range.copyWith(minute: 0);
+      final end = start.add(const Duration(hours: 1));
+      _onNewEvent?.call(DateTimeRange(start: start, end: end));
+    }
+
     markCountDraggables();
   }
 
@@ -179,16 +215,27 @@ class RenderDayViewWidget extends RenderBox
     final yOffset = offset.dy;
 
     _dragStart = offsetToDateTime(yOffset);
-    _dragEnd = _dragStart?.copyWith().add(_dragStep);
+    _dragEnd = _dragStart?.copyWith().add(_minimumDuration);
     markDragNeedsLayout();
   }
 
   void _updateDragging(double delta) {
     final offset = _gestureDetector?.lastPointer;
-    if (offset == null) return;
+    if (offset == null || _dragStart == null) return;
+
     final yOffset = offset.dy;
 
-    _dragEnd = offsetToDateTime(yOffset);
+    DateTime newEnd = offsetToDateTime(yOffset);
+    if (newEnd.day != _dragStart?.day) {
+      if (newEnd.day > _dragStart!.day) {
+        newEnd = _dragStart!.endOfDay;
+      } else {
+        newEnd = _dragStart!.startOfDay;
+      }
+    }
+
+    _dragEnd = newEnd;
+
     markDragNeedsLayout();
   }
 
@@ -218,18 +265,31 @@ class RenderDayViewWidget extends RenderBox
       end = temp;
     }
 
+    // Adhere to min duration
+    if (end.difference(start) < _minimumDuration) {
+      print('adhering to min duration: ${end.difference(start)} - $_minimumDuration');
+      end = start.add(_minimumDuration);
+    }
+
+    print('start: $start, end: $end');
+
     return DateTimeRange(start: start, end: end);
   }
 
-  DateTime offsetToDateTime(double yOffset, {bool onlyHours = false}) {
+  DateTime offsetToDateTime(double yOffset) {
     final hourHeight = _height / 24;
     final hour = yOffset ~/ hourHeight;
+    final hourExact = yOffset / hourHeight;
 
     // Minutes go in intervals
     var minutes = ((yOffset % hourHeight) / hourHeight * 60).round();
     minutes = (minutes ~/ _dragStep.inMinutes) * _dragStep.inMinutes;
 
-    return _date.startOfDay.add(Duration(hours: hour, minutes: onlyHours ? 0 : minutes));
+    if (hourExact < 0) {
+      return _date.startOfDay.subtract(Duration(hours: hour.abs(), minutes: minutes.abs()));
+    } else {
+      return _date.startOfDay.add(Duration(hours: hour, minutes: minutes));
+    }
   }
 
   @override
@@ -247,6 +307,7 @@ class RenderDayViewWidget extends RenderBox
         date: _date.startOfDay,
         left: _leftInset,
         dragStep: _dragStep,
+        minimumDuration: _minimumDuration,
       );
     }
 
