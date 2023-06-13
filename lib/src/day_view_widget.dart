@@ -267,11 +267,8 @@ class RenderDayViewWidget extends RenderBox
 
     // Adhere to min duration
     if (end.difference(start) < _minimumDuration) {
-      print('adhering to min duration: ${end.difference(start)} - $_minimumDuration');
       end = start.add(_minimumDuration);
     }
-
-    print('start: $start, end: $end');
 
     return DateTimeRange(start: start, end: end);
   }
