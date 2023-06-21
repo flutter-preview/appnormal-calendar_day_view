@@ -1,12 +1,13 @@
 import 'package:flutter_calendar_view/flutter_calendar_view.dart';
 import 'package:flutter/rendering.dart';
 
-class DayViewWidgetParentData extends ContainerBoxParentData<RenderDayItemWidget> {
+class DayViewWidgetParentData<T> extends ContainerBoxParentData<RenderDayItemWidget> {
   DayViewWidgetParentData({
     required this.hourHeight,
     required this.date,
     required this.dragStep,
     required this.minimumDuration,
+    required this.canDragItem,
     bool draggable = false,
     this.isNewItem = false,
     this.left = 0,
@@ -16,6 +17,7 @@ class DayViewWidgetParentData extends ContainerBoxParentData<RenderDayItemWidget
   final DateTime date;
   final Duration dragStep;
   final Duration minimumDuration;
+  final CanIndexDragCallback<T>? canDragItem;
 
   bool needsLayout = true;
   bool isNewItem;

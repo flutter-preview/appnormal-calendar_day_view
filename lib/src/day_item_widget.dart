@@ -18,18 +18,20 @@ enum ToggleDraggableAction {
 
 enum _ActiveHandle { start, end, middle }
 
-class DayItemWidget extends SingleChildRenderObjectWidget {
+class DayItemWidget<T> extends SingleChildRenderObjectWidget {
   const DayItemWidget({
     super.key,
     super.child,
     required this.start,
     required this.end,
+    this.item,
     this.onItemDragEnd,
     this.toggleDraggableAction = ToggleDraggableAction.onLongPress,
     this.drawTopDragHandle,
     this.drawBottomDragHandle,
-    this.isForNewItem = false,
-  });
+  }) : isForNewItem = item == null;
+
+  final T? item;
 
   final bool isForNewItem;
 
@@ -51,7 +53,8 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
 
   @override
   RenderDayItemWidget createRenderObject(BuildContext context) {
-    return RenderDayItemWidget(
+    return RenderDayItemWidget<T>(
+      item: item,
       start: start,
       end: end,
       isForNewItem: isForNewItem,
@@ -63,8 +66,9 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
   }
 
   @override
-  void updateRenderObject(BuildContext context, covariant RenderDayItemWidget renderObject) {
+  void updateRenderObject(BuildContext context, covariant RenderDayItemWidget<T> renderObject) {
     renderObject
+      ..item = item
       ..start = start
       ..end = end
       ..isForNewItem = isForNewItem
@@ -75,8 +79,9 @@ class DayItemWidget extends SingleChildRenderObjectWidget {
   }
 }
 
-class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<RenderObject> {
+class RenderDayItemWidget<T> extends RenderBox with RenderObjectWithChildMixin<RenderObject> {
   RenderDayItemWidget({
+    required T? item,
     required DateTime start,
     required DateTime end,
     bool isForNewItem = false,
@@ -84,7 +89,8 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
     ToggleDraggableAction? toggleDraggableAction,
     DragHandlePainter? drawTopDragHandle,
     DragHandlePainter? drawBottomDragHandle,
-  })  : _start = start,
+  })  : _item = item,
+        _start = start,
         _end = end,
         _isForNewItem = isForNewItem,
         _onItemDragEnd = onItemDragEnd,
@@ -92,6 +98,7 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
         _drawTopDragHandle = drawTopDragHandle,
         _drawBottomDragHandle = drawBottomDragHandle;
 
+  T? _item;
   DateTime _start;
   DateTime _end;
   bool _isForNewItem;
@@ -130,7 +137,7 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   CalendarGestureDetector? _gestureDetector;
 
   @override
-  DayViewWidgetParentData? get parentData => super.parentData as DayViewWidgetParentData?;
+  DayViewWidgetParentData<T>? get parentData => super.parentData as DayViewWidgetParentData<T>?;
 
   DateTimeRange get range {
     return DateTimeRange(start: start, end: end);
@@ -162,6 +169,11 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
     if (!_isForNewItem) {
       markParentNeedsRecalculate();
     }
+  }
+
+  set item(T? value) {
+    if (_item == value) return;
+    _item = value;
   }
 
   ToggleDraggableAction? get toggleDraggableAction => _toggleDraggableAction;
@@ -205,7 +217,11 @@ class RenderDayItemWidget extends RenderBox with RenderObjectWithChildMixin<Rend
   }
 
   void _toggleDraggable() {
-    parentData!.draggable = !parentData!.draggable;
+    final data = parentData;
+    if (data == null || _item == null) return;
+    if (data.canDragItem?.call(_item as T) == false) return;
+
+    data.draggable = !data.draggable;
     markNeedsPaint();
     markParentCountDraggables();
   }

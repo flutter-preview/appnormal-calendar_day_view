@@ -174,6 +174,7 @@ DayItemWidget item(
   }
 
   return DayItemWidget(
+    item: item,
     start: start,
     end: end,
     toggleDraggableAction: ToggleDraggableAction.onLongPress,

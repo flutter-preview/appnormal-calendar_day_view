@@ -8,6 +8,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
+typedef CanIndexDragCallback<T> = bool Function(T item);
+
 class DayViewWidget<T> extends MultiChildRenderObjectWidget {
   DayViewWidget({
     Key? key,
@@ -18,6 +20,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
     this.leftInset = 55,
     this.dragStep = const Duration(seconds: 1),
     this.minimumDuration = const Duration(minutes: 15),
+    this.canDragItem,
     this.onNewEvent,
     this.onDraggingStateChange,
     this.textStyle = const TextStyle(
@@ -31,7 +34,6 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
             DayItemWidget(
               start: date,
               end: date,
-              isForNewItem: true,
               child: onNewItemBuilder(),
             ),
           ],
@@ -44,16 +46,18 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
   final DateTime date;
   final TextStyle textStyle;
 
+  final CanIndexDragCallback<T>? canDragItem;
   final ValueSetter<DateTimeRange>? onNewEvent;
   final ValueSetter<bool>? onDraggingStateChange;
 
   @override
   RenderObject createRenderObject(BuildContext context) {
-    return RenderDayViewWidget(
+    return RenderDayViewWidget<T>(
       height: height,
       date: date,
       dragStep: dragStep,
       minimumDuration: minimumDuration,
+      canDragItem: canDragItem,
       onNewEvent: onNewEvent,
       onDraggingStateChange: onDraggingStateChange,
       leftInset: leftInset,
@@ -62,7 +66,7 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
   }
 
   @override
-  void updateRenderObject(BuildContext context, covariant RenderDayViewWidget renderObject) {
+  void updateRenderObject(BuildContext context, covariant RenderDayViewWidget<T> renderObject) {
     renderObject
       ..height = height
       ..date = date
@@ -70,12 +74,13 @@ class DayViewWidget<T> extends MultiChildRenderObjectWidget {
       ..minimumDuration = minimumDuration
       ..leftInset = leftInset
       ..onDraggingStateChange = onDraggingStateChange
+      ..canDragItem = canDragItem
       ..onNewEvent = onNewEvent
       ..textStyle = textStyle;
   }
 }
 
-class RenderDayViewWidget extends RenderBox
+class RenderDayViewWidget<T> extends RenderBox
     with
         ContainerRenderObjectMixin<RenderDayItemWidget, DayViewWidgetParentData>,
         RenderBoxContainerDefaultsMixin<RenderDayItemWidget, DayViewWidgetParentData> {
@@ -86,12 +91,14 @@ class RenderDayViewWidget extends RenderBox
     required Duration minimumDuration,
     required ValueSetter<DateTimeRange>? onNewEvent,
     required ValueSetter<bool>? onDraggingStateChange,
+    required CanIndexDragCallback<T>? canDragItem,
     required double leftInset,
     required TextStyle textStyle,
   })  : _height = height,
         _date = date,
         _dragStep = dragStep,
         _minimumDuration = minimumDuration,
+        _canDragItem = canDragItem,
         _onNewEvent = onNewEvent,
         _onDraggingStateChange = onDraggingStateChange,
         _leftInset = leftInset,
@@ -147,6 +154,12 @@ class RenderDayViewWidget extends RenderBox
   set minimumDuration(Duration value) {
     if (_minimumDuration == value) return;
     _minimumDuration = value;
+  }
+
+  CanIndexDragCallback<T>? _canDragItem;
+  set canDragItem(CanIndexDragCallback<T>? value) {
+    if (_canDragItem == value) return;
+    _canDragItem = value;
   }
 
   CalendarGestureDetector? _gestureDetector;
@@ -299,9 +312,10 @@ class RenderDayViewWidget extends RenderBox
 
       // Give the new child a fresh parent data
 
-      child.parentData = DayViewWidgetParentData(
+      child.parentData = DayViewWidgetParentData<T>(
         hourHeight: _height / 24,
         date: _date.startOfDay,
+        canDragItem: _canDragItem,
         left: _leftInset,
         dragStep: _dragStep,
         minimumDuration: _minimumDuration,
@@ -447,7 +461,7 @@ class RenderDayViewWidget extends RenderBox
 
   RenderDayItemWidget? _overlapOnIndex(RenderDayItemWidget child, {int startCol = 0}) {
     return loopChildren((neighbor) {
-      final neighborParentData = neighbor.parentData as DayViewWidgetParentData;
+      final neighborParentData = neighbor.parentData as DayViewWidgetParentData<T>;
 
       final overlaps = child.range.overlaps(neighbor.range);
 
@@ -486,7 +500,7 @@ class RenderDayViewWidget extends RenderBox
     RenderDayItemWidget? bestResult;
 
     loopChildren((neighbor) {
-      final neighborParentData = neighbor.parentData as DayViewWidgetParentData;
+      final neighborParentData = neighbor.parentData as DayViewWidgetParentData<T>;
 
       final overlaps = child.range.overlaps(neighbor.range);
       final betterStartCol = neighborParentData.startCol < lowestEndCol;
