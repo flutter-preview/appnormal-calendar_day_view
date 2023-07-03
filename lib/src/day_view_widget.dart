@@ -172,6 +172,7 @@ class RenderDayViewWidget<T> extends RenderBox
   void attach(covariant PipelineOwner owner) {
     super.attach(owner);
 
+    print('Test');
     _gestureDetector ??= CalendarGestureDetector(
       onTap: _handleOnTap,
       onLongPress: _startDragging,
@@ -198,6 +199,8 @@ class RenderDayViewWidget<T> extends RenderBox
         didStopDragging = true;
       }
     });
+
+    _gestureDetector?.stopDragging();
 
     // Stop dragging any new items
     if (_dragEnd != null || _dragStart != null) didStopDragging = true;
@@ -226,6 +229,8 @@ class RenderDayViewWidget<T> extends RenderBox
     final offset = _gestureDetector?.lastPointer;
     if (offset == null) return;
     final yOffset = offset.dy;
+
+    _gestureDetector?.startDragging();
 
     _dragStart = offsetToDateTime(yOffset);
     _dragEnd = _dragStart?.copyWith().add(_minimumDuration);

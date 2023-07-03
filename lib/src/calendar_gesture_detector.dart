@@ -15,6 +15,8 @@ class CalendarGestureDetector {
   final ValueChanged<double>? onVerticalDragEnd;
   final bool Function(Offset position)? onChildHit;
 
+  bool _dragging = false;
+
   CalendarGestureDetector({
     this.onTap,
     this.onLongPress,
@@ -62,7 +64,7 @@ class CalendarGestureDetector {
 
     _dragGestureRecognizer = VerticalDragGestureRecognizer(debugOwner: this)
       ..onDown = (details) {
-        if (onChildHit?.call(details.localPosition) ?? false) {
+        if (onChildHit?.call(details.localPosition) != true) {
           return;
         }
 
@@ -70,10 +72,14 @@ class CalendarGestureDetector {
         onVerticalDragStart?.call(details.localPosition.dy);
       }
       ..onEnd = (details) {
+        if (lastPointer == null) {
+          return;
+        }
+
         onVerticalDragEnd?.call(lastPointer!.dy);
       }
       ..onUpdate = (details) {
-        if (onChildHit?.call(details.localPosition) ?? false) {
+        if (onChildHit?.call(details.localPosition) != true) {
           return;
         }
 
@@ -86,7 +92,18 @@ class CalendarGestureDetector {
     if (event is PointerDownEvent) {
       _tapGestureRecognizer.addPointer(event);
       _longPressGestureRecognizer.addPointer(event);
-      _dragGestureRecognizer.addPointer(event);
+
+      if (_dragging) {
+        _dragGestureRecognizer.addPointer(event);
+      }
     }
+  }
+
+  void startDragging() {
+    _dragging = true;
+  }
+
+  void stopDragging() {
+    _dragging = false;
   }
 }

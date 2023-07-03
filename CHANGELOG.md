@@ -1,3 +1,7 @@
+## 0.0.6
+
+* Allow to be used in a scroll view (iOS bugfix)
+
 ## 0.0.5
 
 * Add generic `item` to DayViewItem and allow dragging to be enabled/disabled on a per item basis.
