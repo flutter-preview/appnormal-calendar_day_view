@@ -172,7 +172,6 @@ class RenderDayViewWidget<T> extends RenderBox
   void attach(covariant PipelineOwner owner) {
     super.attach(owner);
 
-    print('Test');
     _gestureDetector ??= CalendarGestureDetector(
       onTap: _handleOnTap,
       onLongPress: _startDragging,
